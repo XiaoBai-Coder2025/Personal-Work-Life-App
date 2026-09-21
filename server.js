@@ -76,11 +76,28 @@ async function handleApi(req, res, parts) {
   return send(res, 404, { error: '没有这个接口' });
 }
 
-export function createServer() {
+async function handleAmap(req, res, url, fetchImpl) {
+  const settings = await readCollection('settings');
+  const jscode = settings?.amapSecCode;
+  if (!jscode) return send(res, 400, { error: '还没有配置高德安全密钥，请到「数据与设置」里填写。' });
+  const target = new URL(`https://restapi.amap.com/${url.pathname.replace(/^\/_AMapService\//, '')}`);
+  for (const [key, value] of url.searchParams) target.searchParams.set(key, value);
+  target.searchParams.set('jscode', jscode);
+  const upstream = await fetchImpl(target.toString());
+  const text = await upstream.text();
+  const type = upstream.headers?.get?.('content-type') ?? 'application/json; charset=utf-8';
+  return send(res, upstream.status ?? 200, text, type);
+}
+
+export function createServer({ fetchImpl = globalThis.fetch } = {}) {
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     const parts = url.pathname.split('/').filter(Boolean);
     try {
+      if (parts[0] === '_AMapService') {
+        if (req.method !== 'GET') return send(res, 405, { error: '不支持的方法' });
+        return await handleAmap(req, res, url, fetchImpl);
+      }
       if (parts[0] === 'api') return await handleApi(req, res, parts);
       if (req.method !== 'GET') return send(res, 405, { error: '不支持的方法' });
       return await serveStatic(res, url.pathname);

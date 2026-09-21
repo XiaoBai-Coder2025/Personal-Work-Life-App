@@ -200,3 +200,18 @@ button.danger { color: var(--danger); border-color: #e8bcb8; }
 .daybar i { height: 100%; }
 .chip.ok { background: #e8f5ec; color: var(--ok); }
 .small { font-size: 12px; }
+
+.mapwrap { position: relative; height: 520px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface-2); }
+.mapcanvas { position: absolute; inset: 0; }
+.mapfallback { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; padding: 20px; text-align: center; }
+.float {
+  position: absolute; top: 12px; bottom: 12px; overflow-y: auto; width: 280px; padding: 12px 14px;
+  background: rgba(255, 255, 255, .94); border: 1px solid var(--line); border-radius: 11px;
+  box-shadow: 0 8px 22px rgba(20, 24, 32, .14); display: grid; gap: 6px; align-content: start;
+}
+.float.left { left: 12px; }
+.float.right { right: 12px; width: 300px; }
+.float h3 { margin: 10px 0 4px; font-size: 13px; }
+.float h3:first-child { margin-top: 0; }
+.placebtn { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 5px 10px; font: inherit; font-size: 13px; cursor: pointer; text-align: left; }
+.placebtn.picked { border-color: var(--accent); background: #f3f7ff; }
