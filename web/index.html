@@ -13,6 +13,16 @@
   </header>
   <nav id="nav" class="nav"></nav>
   <main id="view" class="view"></main>
+  <div class="dock">
+    <div id="dock-answer" class="dockanswer" hidden></div>
+    <div class="row">
+      <span class="dockmark">AI</span>
+      <input id="dock-input" type="text" placeholder="问点什么">
+      <button id="dock-send" class="primary">发送</button>
+      <a class="docklink" href="#/ai">展开</a>
+    </div>
+    <div id="dock-quick" class="row"></div>
+  </div>
   <div id="toast" class="toast" hidden></div>
   <script type="module" src="/app.js"></script>
 </body>

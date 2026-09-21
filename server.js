@@ -5,6 +5,8 @@ import { pathToFileURL } from 'node:url';
 import { PORT, WEB_DIR } from './src/paths.js';
 import { isCollection, readCollection, writeCollection } from './src/store.js';
 import { exportAll, importAll } from './src/backup.js';
+import { chatProxy } from './src/ai.js';
+import { extractText } from './src/extract.js';
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -42,7 +44,7 @@ async function serveStatic(res, urlPath) {
   }
 }
 
-async function handleApi(req, res, parts) {
+async function handleApi(req, res, parts, fetchImpl) {
   if (parts[1] === 'health') return send(res, 200, { ok: true });
 
   if (parts[1] === 'data' && parts[2]) {
@@ -63,6 +65,28 @@ async function handleApi(req, res, parts) {
 
   if (parts[1] === 'backup' && parts[2] === 'export' && req.method === 'POST') {
     return send(res, 200, await exportAll());
+  }
+
+  if (parts[1] === 'ai' && parts[2] === 'chat' && req.method === 'POST') {
+    try {
+      const settings = await readCollection('settings');
+      const body = JSON.parse(await readBody(req));
+      const result = await chatProxy({ settings, messages: body.messages, fetchImpl });
+      return send(res, result.status, result.text);
+    } catch (err) {
+      return send(res, 400, { error: err.message });
+    }
+  }
+
+  if (parts[1] === 'import' && parts[2] === 'parse' && req.method === 'POST') {
+    try {
+      const body = JSON.parse(await readBody(req));
+      const buffer = Buffer.from(body.base64 ?? '', 'base64');
+      const text = await extractText(body.filename, buffer);
+      return send(res, 200, { text: text.slice(0, 20000) });
+    } catch (err) {
+      return send(res, 400, { error: err.message });
+    }
   }
 
   if (parts[1] === 'backup' && parts[2] === 'import' && req.method === 'POST') {
@@ -98,7 +122,7 @@ export function createServer({ fetchImpl = globalThis.fetch } = {}) {
         if (req.method !== 'GET') return send(res, 405, { error: '不支持的方法' });
         return await handleAmap(req, res, url, fetchImpl);
       }
-      if (parts[0] === 'api') return await handleApi(req, res, parts);
+      if (parts[0] === 'api') return await handleApi(req, res, parts, fetchImpl);
       if (req.method !== 'GET') return send(res, 405, { error: '不支持的方法' });
       return await serveStatic(res, url.pathname);
     } catch (err) {

@@ -5,5 +5,9 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test"
+  },
+  "dependencies": {
+    "mammoth": "^1.12.3",
+    "pdfjs-dist": "^6.3.289"
   }
 }

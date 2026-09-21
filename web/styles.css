@@ -215,3 +215,16 @@ button.danger { color: var(--danger); border-color: #e8bcb8; }
 .float h3:first-child { margin-top: 0; }
 .placebtn { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 5px 10px; font: inherit; font-size: 13px; cursor: pointer; text-align: left; }
 .placebtn.picked { border-color: var(--accent); background: #f3f7ff; }
+
+.dock {
+  position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--line);
+  padding: 10px 18px; display: grid; gap: 8px;
+}
+.dock .row { gap: 8px; }
+.dock input { flex: 1; }
+.dockmark { width: 26px; height: 26px; border-radius: 8px; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 11px; }
+.docklink { color: var(--accent); font-size: 13px; text-decoration: none; }
+.dockanswer { background: var(--surface-2); border-radius: 8px; padding: 9px 11px; font-size: 13px; white-space: pre-wrap; }
+.msg { padding: 8px 11px; border-radius: 10px; background: var(--surface-2); margin-bottom: 8px; white-space: pre-wrap; }
+.msg.user { background: var(--accent); color: #fff; margin-left: 40px; }
+.readlist { padding: 4px 0 8px 12px; font-size: 12px; color: var(--muted); display: grid; gap: 3px; }
