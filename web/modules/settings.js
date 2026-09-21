@@ -18,9 +18,9 @@ const WD_NAMES = ['周一', '周二', '周三', '周四', '周五', '周六', '�
 let state = null;
 
 async function ensure() {
-  if (state) return state;
   const all = {};
   for (const name of COLLECTIONS) all[name] = await load(name);
+  const previous = state?.newRoutine;
   state = {
     all,
     profile: { identity: '', wake: '07:00', sleep: '23:30', commute: '地铁', ...all.profile },
@@ -37,7 +37,7 @@ async function ensure() {
     },
     routine: { version: 1, items: all.routine.items ?? [] },
     places: { version: 1, items: all.places.items ?? [] },
-    newRoutine: { title: '', place: '', from: '08:00', to: '09:40', weekdays: [] },
+    newRoutine: previous ?? { title: '', place: '', from: '08:00', to: '09:40', weekdays: [] },
     newPlace: { name: '', tag: '常用' },
   };
   return state;

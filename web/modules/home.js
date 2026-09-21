@@ -10,14 +10,15 @@ const DATA_KEYS = ['profile', 'places', 'routine', 'events', 'plans', 'tasks', '
 let state = null;
 
 async function ensure() {
-  if (state) return state;
   const data = {};
   for (const key of DATA_KEYS) data[key] = await load(key);
-  state = {
-    data,
-    open: { due: true, plan: true, proj: false, advice: true, memo: true, where: false },
-    newMemo: '',
-  };
+  if (!state) {
+    state = {
+      open: { due: true, plan: true, proj: false, advice: true, memo: true, where: false },
+      newMemo: '',
+    };
+  }
+  state.data = data;
   return state;
 }
 

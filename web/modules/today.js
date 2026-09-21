@@ -6,21 +6,16 @@ import { buildDay, relayTimes } from '../core/scheduler.js';
 let state = null;
 
 async function ensure() {
-  if (state) return state;
   const [routine, events, tasks, plans, pending, profile] = await Promise.all([
     load('routine'), load('events'), load('tasks'), load('plans'), load('pending'), load('profile'),
   ]);
-  state = {
-    date: todayKey(),
-    routineItems: routine.items ?? [],
-    events: events.items ?? [],
-    tasks: tasks.items ?? [],
-    plans: plans.items ?? [],
-    pending: pending.items ?? [],
-    profile: profile ?? {},
-    add: null,
-    snooze: null,
-  };
+  if (!state) state = { date: todayKey(), add: null, snooze: null };
+  state.routineItems = routine.items ?? [];
+  state.events = events.items ?? [];
+  state.tasks = tasks.items ?? [];
+  state.plans = plans.items ?? [];
+  state.pending = pending.items ?? [];
+  state.profile = profile ?? {};
   return state;
 }
 

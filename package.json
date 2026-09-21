@@ -1,13 +1,21 @@
 {
   "name": "personal-work-life-app",
   "private": true,
+  "version": "1.0.0",
   "type": "module",
+  "main": "main.js",
+  "description": "个人工作生活 App（本机运行，数据保存在本地）",
   "scripts": {
     "start": "node server.js",
+    "app": "electron .",
     "test": "node --test"
   },
   "dependencies": {
     "mammoth": "^1.12.3",
     "pdfjs-dist": "^6.3.289"
+  },
+  "devDependencies": {
+    "@electron/packager": "^19.0.2",
+    "electron": "^44.4.3"
   }
 }

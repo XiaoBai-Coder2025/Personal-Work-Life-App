@@ -10,16 +10,10 @@ const DAY_SPAN = 14 * 60;
 let cache = null;
 
 async function loadData() {
-  if (cache) return cache;
   const [events, routine] = await Promise.all([load('events'), load('routine')]);
-  cache = {
-    events: events.items ?? [],
-    routine: routine.items ?? [],
-    week: weekStart(todayKey()),
-    picked: todayKey(),
-    editing: null,
-    draft: { title: '', from: '09:00', to: '10:00' },
-  };
+  if (!cache) cache = { week: weekStart(todayKey()), picked: todayKey(), editing: null };
+  cache.events = events.items ?? [];
+  cache.routine = routine.items ?? [];
   return cache;
 }
 

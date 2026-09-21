@@ -14,17 +14,14 @@ const PHASE_COLORS = ['fixed', 'task', 'travel', 'due', 'break'];
 let state = null;
 
 async function ensure() {
-  if (state) return state;
   const [tasks, plans] = await Promise.all([load('tasks'), load('plans')]);
-  state = {
-    tasks: tasks.items ?? [],
-    plans: plans.items ?? [],
-    picked: null,
-    newTask: null,
-    draft: null,
-    newStage: '',
-  };
-  if (state.tasks.length) state.picked = state.tasks[0].id;
+  if (!state) state = { picked: null, newTask: null, draft: null, newStage: '' };
+  state.tasks = tasks.items ?? [];
+  state.plans = plans.items ?? [];
+  if (!state.tasks.some((t) => t.id === state.picked)) {
+    state.picked = state.tasks[0]?.id ?? null;
+    state.draft = null;
+  }
   return state;
 }
 
@@ -402,7 +399,21 @@ function draftBox(task) {
 function draw() {
   const view = document.getElementById('view');
   clear(view);
+  const today = todayKey();
+  const sunday = addDays(weekStart(today), 6);
+  const tasks = state.tasks;
+  const todayCount = tasks.filter((t) => (t.plan ?? []).some((s) => `2026-${s.d}` === today)).length;
+  const weekDue = tasks.filter((t) => t.due && t.due >= today && t.due <= sunday).length;
+  const risky = tasks.filter((t) => t.risk === '高'
+    || (t.due && t.due < today)
+    || budgetState(t).over.length > 0).length;
   view.append(
+    h('div', { class: 'overview' },
+      h('div', { class: 'ov' }, h('span', {}, '进行中的长周期任务'), h('b', {}, String(tasks.length))),
+      h('div', { class: 'ov' }, h('span', {}, '本周要交付'), h('b', {}, String(weekDue))),
+      h('div', { class: 'ov' }, h('span', {}, '有延期风险'), h('b', { class: risky ? 'warn' : '' }, String(risky))),
+      h('div', { class: 'ov' }, h('span', {}, '今天排进计划'), h('b', {}, `${todayCount} 段`))),
+  );
     gantt(),
     h('div', { class: 'cols wide-left' }, listPanel(), detailPanel()),
   );

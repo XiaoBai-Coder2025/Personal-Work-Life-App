@@ -10,25 +10,27 @@ const HOLIDAY_FACTOR = 1.35;
 let state = null;
 
 async function ensure() {
-  if (state) return state;
   const [places, settings] = await Promise.all([load('places'), load('settings')]);
   const items = places.items ?? [];
-  state = {
-    places: items,
-    settings: settings ?? {},
-    order: items.slice(0, 3).map((p) => p.id),
-    legMode: {},
-    arriveAt: '15:00',
-    chosen: '',
-    holiday: false,
-    query: '',
-    results: [],
-    poi: '',
-    poiResults: [],
-    mapError: '',
-    map: null,
-    amap: null,
-  };
+  if (!state) {
+    state = {
+      order: items.slice(0, 3).map((p) => p.id),
+      legMode: {},
+      arriveAt: '15:00',
+      chosen: '',
+      holiday: false,
+      query: '',
+      results: [],
+      poi: '',
+      poiResults: [],
+      mapError: '',
+      map: null,
+      amap: null,
+    };
+  }
+  state.places = items;
+  state.settings = settings ?? {};
+  state.order = state.order.filter((id) => items.some((p) => p.id === id));
   return state;
 }
 

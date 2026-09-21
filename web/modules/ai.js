@@ -10,23 +10,19 @@ const DATA_KEYS = ['profile', 'places', 'routine', 'events', 'plans', 'tasks', '
 let state = null;
 
 async function ensure() {
-  if (state) return state;
   const data = {};
   for (const key of DATA_KEYS) data[key] = await load(key);
-  state = {
-    data,
-    chats: data.chats.items ?? [],
-    picked: null,
-    input: '',
-    busy: false,
-    read: {},
-    wizard: null,
-    imported: null,
-  };
+  if (!state) {
+    state = {
+      picked: null, input: '', busy: false, read: {}, wizard: null, imported: null,
+    };
+  }
+  state.data = data;
+  state.chats = data.chats.items ?? [];
   if (!state.chats.length) {
     state.chats.push({ id: `c${Date.now()}`, title: '新会话', messages: [] });
   }
-  state.picked = state.chats[0].id;
+  if (!state.chats.some((c) => c.id === state.picked)) state.picked = state.chats[0].id;
   return state;
 }
 
@@ -255,33 +251,31 @@ function draw() {
   clear(view);
   const chat = currentChat();
   view.append(
-    h('div', { class: 'cols' },
-      h('div', {},
-        h('section', { class: 'panel' },
-          h('h2', {}, '会话'),
-          state.chats.map((item) => h('button', {
-            class: `taskbtn${item.id === state.picked ? ' picked' : ''}`,
+    h('div', { class: 'cols-3' },
+      h('section', { class: 'panel' },
+        h('h2', {}, '会话'),
+        state.chats.map((item) => h('button', {
+          class: `taskbtn${item.id === state.picked ? ' picked' : ''}`,
+          onclick: () => {
+            state.picked = item.id;
+            draw();
+          },
+        }, item.title)),
+        h('div', { class: 'row' },
+          h('button', {
+            class: 'primary',
             onclick: () => {
-              state.picked = item.id;
+              state.chats.push({ id: `c${Date.now()}`, title: '新会话', messages: [] });
+              state.picked = state.chats[state.chats.length - 1].id;
               draw();
             },
-          }, item.title)),
-          h('div', { class: 'row' },
-            h('button', {
-              class: 'primary',
-              onclick: () => {
-                state.chats.push({ id: `c${Date.now()}`, title: '新会话', messages: [] });
-                state.picked = state.chats[state.chats.length - 1].id;
-                draw();
-              },
-            }, '新建会话'),
-            h('button', {
-              onclick: () => {
-                state.wizard = { step: 1, goal: '', due: addDays(todayKey(), 7), hours: 1.5 };
-                draw();
-              },
-            }, 'AI 智能安排'))),
-        readablePanel()),
+          }, '新建会话'),
+          h('button', {
+            onclick: () => {
+              state.wizard = { step: 1, goal: '', due: addDays(todayKey(), 7), hours: 1.5 };
+              draw();
+            },
+          }, 'AI 智能安排'))),
       h('div', {},
         h('section', { class: 'panel' },
           h('h2', {}, chat.title),
@@ -305,7 +299,7 @@ function draw() {
             }, '发送'))),
         wizardPanel(),
         importPanel()),
-    ),
+      readablePanel()),
   );
 }
 
