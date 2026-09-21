@@ -3,12 +3,13 @@ import { clear, h } from './core/ui.js';
 import { renderSettings } from './modules/settings.js';
 import { renderCalendar } from './modules/calendar.js';
 import { renderToday } from './modules/today.js';
+import { renderWork } from './modules/work.js';
 
 const ROUTES = [
   { hash: '#/home', title: '首页总览' },
   { hash: '#/today', title: '今日计划', render: renderToday },
   { hash: '#/calendar', title: '日历日程', render: renderCalendar },
-  { hash: '#/work', title: '任务追踪' },
+  { hash: '#/work', title: '任务追踪', render: renderWork },
   { hash: '#/map', title: '地图工具' },
   { hash: '#/ai', title: 'AI 助手' },
   { hash: '#/settings', title: '数据与设置', render: renderSettings },
