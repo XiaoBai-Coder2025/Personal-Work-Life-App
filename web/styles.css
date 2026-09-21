@@ -155,3 +155,7 @@ button.danger { color: var(--danger); border-color: #e8bcb8; }
 .mini.today { border-color: var(--accent); }
 .mini.picked { background: var(--surface-2); }
 .mini .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); display: block; }
+
+.prompt { border-color: var(--accent); background: #f3f7ff; }
+.itemline.done .grow { text-decoration: line-through; color: var(--muted); }
+.itemline.dropped { opacity: .55; }

@@ -2,10 +2,11 @@ import { formatCn, todayKey } from './core/dates.js';
 import { clear, h } from './core/ui.js';
 import { renderSettings } from './modules/settings.js';
 import { renderCalendar } from './modules/calendar.js';
+import { renderToday } from './modules/today.js';
 
 const ROUTES = [
   { hash: '#/home', title: '首页总览' },
-  { hash: '#/today', title: '今日计划' },
+  { hash: '#/today', title: '今日计划', render: renderToday },
   { hash: '#/calendar', title: '日历日程', render: renderCalendar },
   { hash: '#/work', title: '任务追踪' },
   { hash: '#/map', title: '地图工具' },
