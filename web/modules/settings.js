@@ -1,4 +1,4 @@
-import { h, toast } from '../core/ui.js';
+import { h, clear, toast } from '../core/ui.js';
 import { COLLECTIONS, emptyOf, exportBackup, importBackup, load, save } from '../core/api.js';
 
 const IDENTITIES = [
@@ -9,6 +9,27 @@ const IDENTITIES = [
   '工作党',
 ];
 const COMMUTES = ['步行', '骑行', '公交', '地铁', '驾车'];
+const WD_NAMES = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+
+let state = null;
+
+async function ensure() {
+  if (state) return state;
+  const all = {};
+  for (const name of COLLECTIONS) all[name] = await load(name);
+  state = {
+    all,
+    profile: { identity: '', wake: '07:00', sleep: '23:30', commute: '地铁', ...all.profile },
+    settings: {
+      amapJsKey: '', amapSecCode: '', aiBaseUrl: '', aiModel: '', aiKey: '', ...all.settings,
+    },
+    routine: { version: 1, items: all.routine.items ?? [] },
+    places: { version: 1, items: all.places.items ?? [] },
+    newRoutine: { title: '', place: '', from: '08:00', to: '09:40', weekdays: [] },
+    newPlace: { name: '', tag: '常用' },
+  };
+  return state;
+}
 
 function field(label, control) {
   return h('div', { class: 'field' }, h('label', {}, label), control);
@@ -43,16 +64,14 @@ function keyInput(value, onChange) {
   return h('div', { class: 'row' }, input, toggle);
 }
 
-export async function renderSettings(root) {
-  const [profileData, settingsData, ...others] = await Promise.all([
-    load('profile'),
-    load('settings'),
-    ...COLLECTIONS.map((name) => load(name)),
-  ]);
-  const profile = { identity: '', wake: '07:00', sleep: '23:30', commute: '地铁', ...profileData };
-  const settings = {
-    amapJsKey: '', amapSecCode: '', aiBaseUrl: '', aiModel: '', aiKey: '', ...settingsData,
-  };
+function panel(title, ...children) {
+  return h('section', { class: 'panel' }, h('h2', {}, title), ...children);
+}
+
+function draw(root) {
+  const s = state;
+  clear(root);
+  const redraw = () => draw(root);
 
   const filePicker = h('input', {
     type: 'file',
@@ -72,47 +91,143 @@ export async function renderSettings(root) {
     },
   });
 
-  const counts = COLLECTIONS.map((name, i) => {
-    const data = others[i];
-    const n = Array.isArray(data?.items) ? data.items.length : 0;
+  const counts = COLLECTIONS.map((name) => {
+    const n = Array.isArray(s.all[name]?.items) ? s.all[name].items.length : 0;
     return h('span', {}, `${name} `, h('b', {}, String(n)));
   });
 
+  const routineRows = s.routine.items.length
+    ? s.routine.items.map((r, index) => h('div', { class: 'itemline' },
+      h('span', { class: 'grow' },
+        `${r.title} · ${r.weekdays.map((w) => WD_NAMES[w - 1]).join(' ')} ${r.from}-${r.to}${r.place ? ` · ${r.place}` : ''}`),
+      h('button', {
+        class: 'ghost',
+        onclick: async () => {
+          s.routine.items.splice(index, 1);
+          await save('routine', s.routine);
+          s.all.routine = s.routine;
+          toast('已删除');
+          redraw();
+        },
+      }, '删除'),
+    ))
+    : [h('p', { class: 'muted' }, '还没有固定日程')];
+
+  const weekdayButtons = WD_NAMES.map((name, i) => h('button', {
+    class: s.newRoutine.weekdays.includes(i + 1) ? 'primary' : '',
+    onclick: () => {
+      const list = s.newRoutine.weekdays;
+      const at = list.indexOf(i + 1);
+      if (at >= 0) list.splice(at, 1);
+      else list.push(i + 1);
+      redraw();
+    },
+  }, name));
+
+  const placeRows = s.places.items.length
+    ? s.places.items.map((p, index) => h('div', { class: 'itemline' },
+      h('span', { class: 'grow' }, `${p.name}${p.tag ? ` · ${p.tag}` : ''}`),
+      h('button', {
+        class: 'ghost',
+        onclick: async () => {
+          s.places.items.splice(index, 1);
+          await save('places', s.places);
+          s.all.places = s.places;
+          toast('已删除');
+          redraw();
+        },
+      }, '删除'),
+    ))
+    : [h('p', { class: 'muted' }, '还没有常用地址')];
+
   root.append(
-    h('section', { class: 'panel' },
-      h('h2', {}, '身份与作息'),
-      field('身份', selectInput(IDENTITIES, profile.identity, (v) => { profile.identity = v; })),
-      field('起床时间', textInput(profile.wake, (v) => { profile.wake = v; }, 'time')),
-      field('睡觉时间', textInput(profile.sleep, (v) => { profile.sleep = v; }, 'time')),
-      field('默认通勤方式', selectInput(COMMUTES, profile.commute, (v) => { profile.commute = v; })),
+    panel('身份与作息',
+      field('身份', selectInput(IDENTITIES, s.profile.identity, (v) => { s.profile.identity = v; })),
+      field('起床时间', textInput(s.profile.wake, (v) => { s.profile.wake = v; }, 'time')),
+      field('睡觉时间', textInput(s.profile.sleep, (v) => { s.profile.sleep = v; }, 'time')),
+      field('默认通勤方式', selectInput(COMMUTES, s.profile.commute, (v) => { s.profile.commute = v; })),
       h('button', {
         class: 'primary',
         onclick: async () => {
-          await save('profile', profile);
+          await save('profile', s.profile);
           toast('身份与作息已保存');
         },
-      }, '保存身份与作息'),
-    ),
+      }, '保存身份与作息')),
 
-    h('section', { class: 'panel' },
-      h('h2', {}, '接口 Key'),
-      field('高德 JS Key（地图显示、路线与天气）', keyInput(settings.amapJsKey, (v) => { settings.amapJsKey = v; })),
-      field('高德安全密钥（由本机服务代转，不进页面）', keyInput(settings.amapSecCode, (v) => { settings.amapSecCode = v; })),
-      field('AI 服务地址', textInput(settings.aiBaseUrl, (v) => { settings.aiBaseUrl = v; })),
-      field('AI 模型名', textInput(settings.aiModel, (v) => { settings.aiModel = v; })),
-      field('AI Key', keyInput(settings.aiKey, (v) => { settings.aiKey = v; })),
+    panel('固定课表 / 工作表',
+      ...routineRows,
+      h('h3', {}, '添加一条'),
+      field('名称', textInput(s.newRoutine.title, (v) => { s.newRoutine.title = v; })),
+      h('div', { class: 'field' }, h('label', {}, '星期'), h('div', { class: 'row' }, weekdayButtons)),
+      h('div', { class: 'splits' },
+        field('开始时间', textInput(s.newRoutine.from, (v) => { s.newRoutine.from = v; }, 'time')),
+        field('结束时间', textInput(s.newRoutine.to, (v) => { s.newRoutine.to = v; }, 'time'))),
+      field('地点', textInput(s.newRoutine.place, (v) => { s.newRoutine.place = v; })),
       h('button', {
         class: 'primary',
         onclick: async () => {
-          await save('settings', settings);
+          const nr = s.newRoutine;
+          if (!nr.title.trim()) return toast('先填名称');
+          if (!nr.weekdays.length) return toast('至少选一个星期');
+          s.routine.items.push({
+            id: `r${Date.now()}`,
+            title: nr.title.trim(),
+            weekdays: [...nr.weekdays].sort((a, b) => a - b),
+            from: nr.from,
+            to: nr.to,
+            place: nr.place.trim(),
+            startDate: '',
+            endDate: '',
+          });
+          await save('routine', s.routine);
+          s.all.routine = s.routine;
+          s.newRoutine = { title: '', place: '', from: '08:00', to: '09:40', weekdays: [] };
+          toast('已添加固定日程');
+          redraw();
+        },
+      }, '添加')),
+
+    panel('常用地址',
+      ...placeRows,
+      h('h3', {}, '添加一个'),
+      h('div', { class: 'splits' },
+        field('名称', textInput(s.newPlace.name, (v) => { s.newPlace.name = v; })),
+        field('标签', textInput(s.newPlace.tag, (v) => { s.newPlace.tag = v; }))),
+      h('button', {
+        class: 'primary',
+        onclick: async () => {
+          if (!s.newPlace.name.trim()) return toast('先填名称');
+          s.places.items.push({
+            id: `p${Date.now()}`,
+            name: s.newPlace.name.trim(),
+            tag: s.newPlace.tag.trim(),
+            lng: null,
+            lat: null,
+          });
+          await save('places', s.places);
+          s.all.places = s.places;
+          s.newPlace = { name: '', tag: '常用' };
+          toast('已添加地址');
+          redraw();
+        },
+      }, '添加')),
+
+    panel('接口 Key',
+      field('高德 JS Key（地图显示、路线与天气）', keyInput(s.settings.amapJsKey, (v) => { s.settings.amapJsKey = v; })),
+      field('高德安全密钥（由本机服务代转，不进页面）', keyInput(s.settings.amapSecCode, (v) => { s.settings.amapSecCode = v; })),
+      field('AI 服务地址', textInput(s.settings.aiBaseUrl, (v) => { s.settings.aiBaseUrl = v; })),
+      field('AI 模型名', textInput(s.settings.aiModel, (v) => { s.settings.aiModel = v; })),
+      field('AI Key', keyInput(s.settings.aiKey, (v) => { s.settings.aiKey = v; })),
+      h('button', {
+        class: 'primary',
+        onclick: async () => {
+          await save('settings', s.settings);
           toast('Key 已保存');
         },
       }, '保存 Key'),
-      h('p', { class: 'muted' }, 'Key 只存在本机 data/settings.json，不会写进代码，也不会上传。'),
-    ),
+      h('p', { class: 'muted' }, 'Key 只存在本机 data/settings.json，不写进代码，也不上传。')),
 
-    h('section', { class: 'panel' },
-      h('h2', {}, '数据'),
+    panel('数据',
       h('div', { class: 'stat' }, counts),
       h('div', { class: 'row', style: 'margin-top:12px' },
         h('button', {
@@ -138,7 +253,11 @@ export async function renderSettings(root) {
         }, '清空全部数据'),
       ),
       filePicker,
-      h('p', { class: 'muted' }, '导出会在 backups 目录留一份，同时下载到你的下载文件夹；导入会整体覆盖现有数据，并自动把导入前的数据另存一份。'),
-    ),
+      h('p', { class: 'muted' }, '导出会在 backups 目录留一份，同时下载到本机；导入会整体覆盖现有数据，并自动留下导入前快照。')),
   );
+}
+
+export async function renderSettings(root) {
+  await ensure();
+  draw(root);
 }

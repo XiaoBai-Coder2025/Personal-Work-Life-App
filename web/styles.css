@@ -118,3 +118,40 @@ button.danger { color: var(--danger); border-color: #e8bcb8; }
 @media (max-width: 900px) {
   .cols { grid-template-columns: 1fr; }
 }
+
+.axis { display: grid; gap: 6px; }
+.axrow { display: grid; grid-template-columns: 84px 1fr auto; gap: 10px; align-items: center; }
+.axlabel { font-size: 12px; color: var(--muted); text-align: right; }
+.axlabel.today { color: var(--accent); font-weight: 500; }
+.axtrack {
+  position: relative; height: 30px; border-radius: 7px; background: var(--surface-2);
+  background-image: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 12.5%);
+  overflow: hidden;
+}
+.bar {
+  position: absolute; top: 5px; height: 20px; border-radius: 5px; padding: 0 6px;
+  font-size: 11px; color: #fff; border: 0; cursor: pointer;
+  overflow: hidden; white-space: nowrap; text-align: left;
+}
+.bar-fixed { background: #7c5cff; }
+.bar-task { background: var(--accent); }
+.bar-due { background: #c2410c; }
+.chip { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+.chip.warn { background: #fdeceb; color: var(--danger); }
+.warn { color: var(--danger); font-size: 13px; }
+.itemline { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.itemline:last-of-type { border-bottom: 0; }
+.itemline .time { font-size: 12px; color: var(--muted); width: 92px; }
+.grow { flex: 1; }
+.splits { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.wd { text-align: center; font-size: 11px; color: var(--muted); }
+.mini {
+  min-height: 34px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface);
+  font: inherit; font-size: 12px; cursor: pointer; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2px; padding: 2px;
+}
+.mini.out { opacity: .4; }
+.mini.today { border-color: var(--accent); }
+.mini.picked { background: var(--surface-2); }
+.mini .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); display: block; }
