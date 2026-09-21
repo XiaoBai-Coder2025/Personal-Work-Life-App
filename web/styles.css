@@ -228,3 +228,22 @@ button.danger { color: var(--danger); border-color: #e8bcb8; }
 .msg { padding: 8px 11px; border-radius: 10px; background: var(--surface-2); margin-bottom: 8px; white-space: pre-wrap; }
 .msg.user { background: var(--accent); color: #fff; margin-left: 40px; }
 .readlist { padding: 4px 0 8px 12px; font-size: 12px; color: var(--muted); display: grid; gap: 3px; }
+
+body[data-appearance="light"] { color-scheme: light; }
+body[data-appearance="dark"] { color-scheme: dark; }
+body[data-appearance="auto"] { color-scheme: light dark; }
+body[data-theme="green"] { --accent: light-dark(#1f7a54, #43c08a); }
+body[data-theme="amber"] { --accent: light-dark(#b8631a, #f0a05a); }
+body[data-theme="night"] { --accent: light-dark(#6d4bd8, #9d86ff); }
+body[data-theme="weather"][data-weather="sunny"] { --bg: light-dark(#fbf3e3, #17130d); --accent: light-dark(#c07812, #f0b465); }
+body[data-theme="weather"][data-weather="cloudy"] { --bg: light-dark(#eef1f5, #131519); --accent: light-dark(#55708c, #8fb0d0); }
+body[data-theme="weather"][data-weather="rain"] { --bg: light-dark(#e8eef1, #101518); --accent: light-dark(#2b7d8d, #56c2d4); }
+body[data-theme="weather"][data-weather="snow"] { --bg: light-dark(#f1f6fb, #12161c); --accent: light-dark(#41628f, #86aee0); }
+body[data-theme="weather"][data-weather="fog"] { --bg: light-dark(#f1eff3, #141317); --accent: light-dark(#6f6081, #b3a2c8); }
+
+.drawer { background: var(--surface); border: 1px solid var(--line); border-radius: 11px; margin-bottom: 12px; }
+.drawerhead {
+  width: 100%; display: flex; align-items: center; gap: 9px; padding: 13px 15px;
+  border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left;
+}
+.drawerbody { padding: 0 15px 12px; }

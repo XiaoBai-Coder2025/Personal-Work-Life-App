@@ -8,9 +8,11 @@ import { renderCalendar } from './modules/calendar.js';
 import { renderToday } from './modules/today.js';
 import { renderWork } from './modules/work.js';
 import { renderMap } from './modules/map.js';
+import { renderHome } from './modules/home.js';
+import { applyTheme } from './core/theme.js';
 
 const ROUTES = [
-  { hash: '#/home', title: '首页总览' },
+  { hash: '#/home', title: '首页总览', render: renderHome },
   { hash: '#/today', title: '今日计划', render: renderToday },
   { hash: '#/calendar', title: '日历日程', render: renderCalendar },
   { hash: '#/work', title: '任务追踪', render: renderWork },
@@ -91,4 +93,5 @@ async function route() {
 
 window.addEventListener('hashchange', route);
 document.getElementById('today-label').textContent = formatCn(todayKey());
+load('settings').then((settings) => applyTheme(document.body, settings)).catch(() => {});
 route();

@@ -1,5 +1,6 @@
 import { h, clear, toast } from '../core/ui.js';
 import { COLLECTIONS, emptyOf, exportBackup, importBackup, load, save } from '../core/api.js';
+import { applyTheme } from '../core/theme.js';
 
 const IDENTITIES = [
   '在校大学生（985/211/双一流）',
@@ -9,6 +10,9 @@ const IDENTITIES = [
   '工作党',
 ];
 const COMMUTES = ['步行', '骑行', '公交', '地铁', '驾车'];
+const APPEARANCE = [['light', '亮'], ['dark', '暗'], ['auto', '跟随系统']];
+const THEMES = [['blue', '默认蓝'], ['green', '墨绿'], ['amber', '暖橙'], ['night', '夜紫'], ['weather', '跟随天气']];
+const WEATHERS = [['sunny', '晴'], ['cloudy', '多云'], ['rain', '小雨'], ['snow', '小雪'], ['fog', '有雾']];
 const WD_NAMES = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
 let state = null;
@@ -21,7 +25,15 @@ async function ensure() {
     all,
     profile: { identity: '', wake: '07:00', sleep: '23:30', commute: '地铁', ...all.profile },
     settings: {
-      amapJsKey: '', amapSecCode: '', aiBaseUrl: '', aiModel: '', aiKey: '', ...all.settings,
+      amapJsKey: '',
+      amapSecCode: '',
+      aiBaseUrl: '',
+      aiModel: '',
+      aiKey: '',
+      appearance: 'auto',
+      theme: 'blue',
+      weather: 'sunny',
+      ...all.settings,
     },
     routine: { version: 1, items: all.routine.items ?? [] },
     places: { version: 1, items: all.places.items ?? [] },
@@ -153,6 +165,44 @@ function draw(root) {
           toast('身份与作息已保存');
         },
       }, '保存身份与作息')),
+
+    panel('外观',
+      h('div', { class: 'field' }, h('label', {}, '明暗'),
+        h('div', { class: 'row' }, APPEARANCE.map(([value, name]) => h('button', {
+          class: s.settings.appearance === value ? 'primary' : '',
+          onclick: async () => {
+            s.settings.appearance = value;
+            await save('settings', s.settings);
+            s.all.settings = s.settings;
+            applyTheme(document.body, s.settings);
+            redraw();
+          },
+        }, name)))),
+      h('div', { class: 'field' }, h('label', {}, '配色'),
+        h('div', { class: 'row' }, THEMES.map(([value, name]) => h('button', {
+          class: s.settings.theme === value ? 'primary' : '',
+          onclick: async () => {
+            s.settings.theme = value;
+            await save('settings', s.settings);
+            s.all.settings = s.settings;
+            applyTheme(document.body, s.settings);
+            redraw();
+          },
+        }, name)))),
+      h('div', { class: 'field' }, h('label', {}, '选「跟随天气」时用哪种天气'),
+        h('select', {
+          onchange: async (event) => {
+            s.settings.weather = event.target.value;
+            await save('settings', s.settings);
+            s.all.settings = s.settings;
+            applyTheme(document.body, s.settings);
+            redraw();
+          },
+        }, WEATHERS.map(([value, name]) => h('option', {
+          value,
+          selected: s.settings.weather === value,
+        }, name)))),
+      h('p', { class: 'muted' }, '明暗与配色保存在本机，重启后保持上次的设置。')),
 
     panel('固定课表 / 工作表',
       ...routineRows,
