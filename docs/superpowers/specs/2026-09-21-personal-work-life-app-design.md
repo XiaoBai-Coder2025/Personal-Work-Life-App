@@ -42,6 +42,7 @@ Application_Off_Line_Version/
 ├─ src/
 │  ├─ paths.js            路径与端口等常量
 │  ├─ store.js            数据文件的原子读写与校验
+│  ├─ backup.js           全部数据的导出与导入
 │  ├─ amap.js             高德 Web 服务代理 + 结果缓存
 │  ├─ ai.js               AI 转发（支持流式）
 │  └─ extract.js          文件正文提取（PDF / Word / 文本）
@@ -51,6 +52,7 @@ Application_Off_Line_Version/
 │  ├─ styles.css
 │  ├─ core/               数据客户端、日期工具、通用组件、排布引擎
 │  └─ modules/            七个模块各一个文件
+├─ test/                  自动化测试
 ├─ data/                  你的数据（不进版本库）
 ├─ backups/               自动备份（不进版本库）
 └─ docs/                  设计与计划文档
