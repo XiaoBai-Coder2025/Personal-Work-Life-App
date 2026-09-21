@@ -1,6 +1,7 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
+title 个人工作生活
 
 where node >nul 2>nul
 if errorlevel 1 (
@@ -12,16 +13,36 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo 正在启动本地服务，请稍候……
-start "个人工作生活 App 服务" cmd /k node server.js
+set "READY=0"
+powershell -NoProfile -Command "try{ $c=New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1',4317); $c.Close(); exit 0 }catch{ exit 1 }"
+if not errorlevel 1 set "READY=1"
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ok=$false; for($i=0;$i -lt 24;$i++){ try{ $c=New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1',4317); $c.Close(); $ok=$true; break }catch{ Start-Sleep -Milliseconds 500 } }; if($ok){ Start-Process 'http://localhost:4317'; Write-Host '服务已就绪，浏览器正在打开。' -ForegroundColor Green; exit 0 } else { Write-Host '启动失败：端口 4317 没有响应。' -ForegroundColor Red; Write-Host '请看上面那个「个人工作生活 App 服务」窗口里的报错。' -ForegroundColor Yellow; exit 1 }"
+if "%READY%"=="0" (
+  echo 正在启动本地服务……
+  start "个人工作生活 App 服务" /min cmd /k node server.js
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "for($i=0;$i -lt 24;$i++){ try{ $c=New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1',4317); $c.Close(); exit 0 }catch{ Start-Sleep -Milliseconds 500 } }; exit 1"
+  if errorlevel 1 (
+    echo.
+    echo 启动失败：端口 4317 没有响应。
+    echo 请看任务栏里「个人工作生活 App 服务」那个窗口的报错；
+    echo 也可以在项目文件夹里执行 npm start 查看详细报错。
+    echo.
+    pause
+    exit /b 1
+  )
+)
 
-if errorlevel 1 (
-  echo.
-  echo 如果提示端口被占用，先关掉之前打开的服务窗口再试。
-  echo.
-  pause
+set "BROWSER="
+if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" set "BROWSER=%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"
+if not defined BROWSER if exist "%ProgramFiles%\Microsoft\Edge\Application\msedge.exe" set "BROWSER=%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"
+if not defined BROWSER if exist "%ProgramFiles%\Google\Chrome\Application\chrome.exe" set "BROWSER=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
+if not defined BROWSER if exist "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" set "BROWSER=%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
+if not defined BROWSER if exist "%LocalAppData%\Google\Chrome\Application\chrome.exe" set "BROWSER=%LocalAppData%\Google\Chrome\Application\chrome.exe"
+
+if defined BROWSER (
+  start "" "%BROWSER%" --app=http://localhost:4317 --start-maximized --user-data-dir="%LocalAppData%\PersonalWorkLife\browser"
+) else (
+  start "" http://localhost:4317
 )
 
 exit /b 0
