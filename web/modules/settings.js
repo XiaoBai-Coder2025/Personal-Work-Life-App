@@ -1,6 +1,7 @@
 import { h, clear, toast } from '../core/ui.js';
 import { COLLECTIONS, emptyOf, exportBackup, importBackup, load, save } from '../core/api.js';
 import { applyTheme } from '../core/theme.js';
+import { fillSampleData } from '../core/sample.js';
 
 const IDENTITIES = [
   '在校大学生（985/211/双一流）',
@@ -279,7 +280,17 @@ function draw(root) {
 
     panel('数据',
       h('div', { class: 'stat' }, counts),
+      h('p', { class: 'muted' }, '第一次使用可以先填入一份示例数据（课表、常用地址、日程、长周期任务、备忘），看看各模块怎么用；密钥不会被改动。'),
       h('div', { class: 'row', style: 'margin-top:12px' },
+        h('button', {
+          onclick: async () => {
+            if (!confirm('会覆盖现有的课表、常用地址、日程、长周期任务、备忘和草稿（密钥保留），继续吗？')) return;
+            await fillSampleData();
+            await ensure();
+            toast('已填入示例数据');
+            redraw();
+          },
+        }, '填入示例数据'),
         h('button', {
           class: 'primary',
           onclick: async () => {

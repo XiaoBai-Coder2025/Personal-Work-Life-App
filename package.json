@@ -8,7 +8,8 @@
   "scripts": {
     "start": "node server.js",
     "app": "electron .",
-    "test": "node --test"
+    "test": "node --test",
+    "check-ui": "electron tools/check-ui.mjs"
   },
   "dependencies": {
     "mammoth": "^1.12.3",

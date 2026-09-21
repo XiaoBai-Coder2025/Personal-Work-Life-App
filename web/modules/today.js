@@ -358,7 +358,7 @@ function draw() {
   const view = document.getElementById('view');
   clear(view);
   const list = entries();
-  view.append(
+  view.append(...[
     h('section', { class: 'panel' },
       h('h2', {}, `${state.date} ${weekdayOf(state.date)}`),
       h('p', { class: 'muted' }, `空闲时段：${buildDay({
@@ -371,7 +371,7 @@ function draw() {
     promptCard(list),
     draftCard(),
     timelineCard(list),
-  );
+  ].filter(Boolean));
 }
 
 export async function renderToday(root) {

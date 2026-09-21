@@ -83,6 +83,13 @@ function draw() {
           },
         }, allOpen ? '折叠所有' : '展开所有'),
         h('a', { class: 'docklink', href: '#/today' }, '去今日计划 ›'))),
+    (s.data.tasks.items.length + s.data.notes.items.length + s.data.events.items.length
+      + s.data.routine.items.length + s.data.places.items.length === 0) ? h('section', { class: 'panel' },
+      h('h2', {}, '还没有数据'),
+      h('p', { class: 'muted' }, '这个应用现在是空的。先去「数据与设置」填写你的课表与常用地址，或者一键填入一份示例数据，看看各模块怎么用。'),
+      h('div', { class: 'row' },
+        h('a', { class: 'docklink', href: '#/settings' }, '去数据与设置 ›'),
+        h('a', { class: 'docklink', href: '#/work' }, '直接建一个长周期任务 ›'))) : null,
     h('div', { class: 'cols' },
       h('div', {},
         drawer('due', '即将截止', `${dueItems.length} 条`, dueItems.length

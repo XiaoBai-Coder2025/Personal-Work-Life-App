@@ -413,7 +413,6 @@ function draw() {
       h('div', { class: 'ov' }, h('span', {}, '本周要交付'), h('b', {}, String(weekDue))),
       h('div', { class: 'ov' }, h('span', {}, '有延期风险'), h('b', { class: risky ? 'warn' : '' }, String(risky))),
       h('div', { class: 'ov' }, h('span', {}, '今天排进计划'), h('b', {}, `${todayCount} 段`))),
-  );
     gantt(),
     h('div', { class: 'cols wide-left' }, listPanel(), detailPanel()),
   );
