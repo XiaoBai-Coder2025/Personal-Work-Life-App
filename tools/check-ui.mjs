@@ -51,6 +51,35 @@ async function main() {
     results.push({ route, ...info });
   }
 
+  // 填入示例数据后再检查一遍，确认不是只有空壳
+  await win.loadURL(`http://127.0.0.1:${PORT}/#/settings`);
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  const filled = await win.webContents.executeJavaScript(`(() => {
+    window.confirm = () => true;
+    const button = [...document.querySelectorAll('button')].find((b) => b.textContent.includes('填入示例数据'));
+    if (button) button.click();
+    return !!button;
+  })()`);
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+  results.push({ route: 'sample-data', filled });
+
+  for (const route of ['calendar', 'today', 'work', 'home']) {
+    await win.loadURL(`http://127.0.0.1:${PORT}/#/${route}`);
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    const info = await win.webContents.executeJavaScript(`(() => {
+      const view = document.getElementById('view');
+      const bars = [...view.querySelectorAll('.bar')];
+      const colors = new Set(bars.map((b) => getComputedStyle(b).backgroundColor));
+      return {
+        blocks: view.children.length,
+        textLength: (view.innerText ?? '').length,
+        bars: bars.length,
+        barColors: colors.size,
+      };
+    })()`);
+    results.push({ route: `filled-${route}`, ...info });
+  }
+
   await new Promise((resolve) => server.close(resolve));
   console.log(JSON.stringify({ dataDir: DATA_DIR, results, errors }, null, 2));
   app.exit(errors.length ? 1 : 0);

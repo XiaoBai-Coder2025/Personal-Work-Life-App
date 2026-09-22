@@ -3,6 +3,7 @@ import { load, save } from '../core/api.js';
 import { addDays, keyOf, parseKey, todayKey, weekStart, weekdayOf, toMinutes } from '../core/dates.js';
 import { routineOnDate } from '../core/routine.js';
 import { findOverlaps } from '../core/overlap.js';
+import { colorFor, softColorFor } from '../core/colors.js';
 
 const DAY_START = 8 * 60;
 const DAY_SPAN = 14 * 60;
@@ -39,9 +40,14 @@ function bar(item) {
   }
   const left = ((toMinutes(item.from) - DAY_START) / DAY_SPAN) * 100;
   const width = Math.max(2, ((toMinutes(item.to) - toMinutes(item.from)) / DAY_SPAN) * 100);
+  const isFixed = item.kind === 'fixed';
   return h('button', {
-    class: `bar bar-${item.kind}`,
-    style: `left:${left}%;width:${width}%`,
+    class: `bar${isFixed ? ' bar-soft' : ''}`,
+    style: `left:${left}%;width:${width}%;${
+      isFixed
+      ? `background:${softColorFor(item.title)};color:${colorFor(item.title)};border-color:color-mix(in srgb, ${colorFor(item.title)} 42%, transparent)`
+      : `background:${colorFor(item.title)}`
+    }`,
     title: `${item.from}-${item.to} ${item.title}`,
     onclick: () => openEditor(item),
   }, item.title);

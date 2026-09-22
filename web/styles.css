@@ -193,9 +193,12 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 }
 .bar {
   position: absolute; top: 5px; height: 22px; border-radius: 6px; padding: 0 6px;
-  font-size: 11px; color: #fff; border: 0; cursor: pointer; overflow: hidden;
-  white-space: nowrap; text-align: left;
+  font-size: 11px; color: #fff; border: 1px solid transparent; cursor: pointer; overflow: hidden;
+  white-space: nowrap; text-align: left; box-shadow: var(--shadow-sm);
+  transition: transform .12s ease, box-shadow .16s ease;
 }
+.bar:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.bar-soft { font-weight: 500; }
 .bar-fixed { background: var(--fixed); }
 .bar-task { background: var(--accent); }
 .bar-due { background: #c2410c; }
@@ -260,9 +263,30 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
   position: relative; height: 100%; min-height: 460px; border: 1px solid var(--line);
   border-radius: 12px; overflow: hidden;
   background:
-    linear-gradient(var(--line) 1px, transparent 1px) 0 0 / 44px 44px,
-    linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0 / 44px 44px,
+    radial-gradient(120% 110% at 18% 8%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 62%),
+    radial-gradient(100% 100% at 90% 92%, color-mix(in srgb, var(--accent) 4%, transparent), transparent 60%),
+    linear-gradient(var(--line) 1px, transparent 1px) 0 0 / 48px 48px,
+    linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0 / 48px 48px,
     var(--surface-2);
+}
+.schematic {
+  max-width: 430px; margin: 26px auto; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow-md); display: grid;
+}
+.schematic-head {
+  display: flex; align-items: center; gap: 8px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--line); margin-bottom: 10px;
+}
+.stop { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+.stop-dot {
+  width: 26px; height: 26px; border-radius: 50%; color: #fff; display: grid; place-items: center;
+  font-size: 12px; box-shadow: var(--shadow-sm); flex: none;
+}
+.stop-body { display: flex; align-items: baseline; gap: 5px; }
+.leg { display: flex; align-items: center; gap: 10px; padding: 1px 0; }
+.leg-line {
+  width: 2px; height: 20px; border-radius: 2px; margin-left: 12px;
+  background: linear-gradient(var(--line), color-mix(in srgb, var(--accent) 45%, var(--line)));
 }
 .mapcanvas { position: absolute; inset: 0; }
 .mapfallback { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; padding: 20px; text-align: center; }
@@ -276,11 +300,16 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .float.right { right: 12px; width: 306px; }
 .float h3 { margin: 10px 0 4px; font-size: 13px; }
 .float h3:first-child { margin-top: 0; }
+.float h3::before {
+  content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); margin-right: 7px; vertical-align: middle;
+}
 .placebtn {
   border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
   padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer; text-align: left;
 }
 .placebtn.picked { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.placebtn:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
 
 /* AI 与会话 */
 .msg { padding: 9px 12px; border-radius: 10px; background: var(--surface-2); margin-bottom: 8px; white-space: pre-wrap; font-size: 14px; }

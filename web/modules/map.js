@@ -2,6 +2,36 @@ import { h, clear, toast } from '../core/ui.js';
 import { load, save } from '../core/api.js';
 import { bestOrder, departPlan, haversineKm, estimateMinutes } from '../core/route.js';
 import { loadAmap, searchPlace, searchNearby, geocode } from '../core/amap.js';
+import { colorFor } from '../core/colors.js';
+
+function drawSchematic(box) {
+  const stops = state.order.map((id) => byId(id)).filter(Boolean);
+  const { legs } = plan();
+  box.replaceChildren(h('div', { class: 'schematic' },
+    h('div', { class: 'schematic-head' },
+      h('span', { class: `chip${state.mapError ? ' warn' : ''}` }, state.mapError ? '未接地图' : '正在加载'),
+      h('span', { class: 'small muted' }, state.mapError || '正在加载地图…')),
+    stops.length
+      ? stops.flatMap((place, index) => {
+        const leg = legs[index];
+        return [
+          h('div', { class: 'stop' },
+            h('span', { class: 'stop-dot', style: `background:${colorFor(place.name)}` }, place.name.slice(0, 1)),
+            h('span', { class: 'stop-body' },
+              h('b', {}, place.name),
+              place.tag ? h('span', { class: 'small muted' }, `· ${place.tag}`) : null)),
+          leg ? h('div', { class: 'leg' },
+            h('span', { class: 'leg-line' }),
+            h('span', { class: 'small muted' },
+              `${MODE_NAMES[state.legMode[`${leg.from}>${leg.to}`] ?? 'metro']} ${leg.minutes} 分钟`)) : null,
+        ];
+      })
+      : [h('p', { class: 'muted' }, '左边还没有勾选地点')],
+    state.mapError
+      ? h('a', { class: 'docklink', href: '#/settings', style: 'margin-top:8px' }, '去「数据与设置」填高德 Key ›')
+      : null,
+  ));
+}
 
 const MODE_NAMES = { metro: '地铁', transit: '公交', ride: '骑行', drive: '驾车', walk: '步行' };
 const POIS = ['地铁站', '打印店', '咖啡', '餐厅', '超市', '药店', '银行', '快递点', '便利店', '停车场'];
@@ -71,9 +101,7 @@ function drawMap() {
   const box = document.getElementById('amap');
   if (!box) return;
   if (!state.amap) {
-    box.innerHTML = state.mapError
-      ? `<div class="mapfallback"><p>${state.mapError}</p><p class="muted">没有地图也能用下面的顺序、耗时与出发时间估算。</p></div>`
-      : '<div class="mapfallback"><p class="muted">正在加载地图…</p></div>';
+    drawSchematic(box);
     return;
   }
   box.innerHTML = '';

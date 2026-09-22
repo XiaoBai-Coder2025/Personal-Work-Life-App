@@ -96,7 +96,12 @@ async function dockSend() {
   answerBox.hidden = false;
   answerBox.textContent = '正在读本机数据…';
   try {
-    answerBox.textContent = await askFromDock(currentRoute, question, input);
+    const reply = await askFromDock(currentRoute, question, input);
+    clear(answerBox);
+    answerBox.append(
+      h('div', { class: 'grow' }, reply),
+      h('button', { class: 'ghost', onclick: () => { answerBox.hidden = true; } }, '收起'),
+    );
   } catch (err) {
     answerBox.textContent = `出错了：${err.message}`;
   }
