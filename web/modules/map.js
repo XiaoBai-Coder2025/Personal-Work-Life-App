@@ -231,6 +231,8 @@ function draw() {
       ),
       h('div', { class: 'float right' },
         h('h3', {}, `经过顺序（${state.order.length} 个点）`),
+        (state.settings.amapWebKey ?? '').trim() ? null : h('p', { class: 'small muted' },
+          '提示：路线、周边、天气属于高德「Web服务」，需要再填一把 Web服务 Key（数据与设置 → 第三格）。'),
         state.order.map((id, index) => h('div', { class: 'row' },
           h('span', { class: 'grow' }, `${index + 1}. ${byId(id)?.name ?? ''}`),
           h('button', {

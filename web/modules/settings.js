@@ -2,6 +2,7 @@ import { h, clear, toast } from '../core/ui.js';
 import { COLLECTIONS, emptyOf, exportBackup, importBackup, load, save } from '../core/api.js';
 import { applyTheme } from '../core/theme.js';
 import { fillSampleData } from '../core/sample.js';
+import { loadAmap } from '../core/amap.js';
 import { parseTimetable, previewTimetable, WEEK_LABEL, weekTextOf } from '../core/timetable.js';
 
 const IDENTITIES = [
@@ -36,6 +37,7 @@ async function ensure() {
       theme: 'blue',
       weather: 'sunny',
       amapKeyMode: 'proxy',
+      amapWebKey: '',
       ...all.settings,
     },
     routine: { version: 1, items: all.routine.items ?? [] },
@@ -361,6 +363,7 @@ function draw(root) {
         }, name)))),
       field('高德 JS Key（地图显示、路线与天气）', keyInput(s.settings.amapJsKey, (v) => { s.settings.amapJsKey = v; })),
       field('高德安全密钥（由本机服务代转，不进页面）', keyInput(s.settings.amapSecCode, (v) => { s.settings.amapSecCode = v; })),
+      field('高德 Web服务 Key（路线、周边、天气用；可选，但强烈建议申请一把）', keyInput(s.settings.amapWebKey, (v) => { s.settings.amapWebKey = v; })),
       field('AI 服务地址', textInput(s.settings.aiBaseUrl, (v) => { s.settings.aiBaseUrl = v; })),
       field('AI 模型名', textInput(s.settings.aiModel, (v) => { s.settings.aiModel = v; })),
       field('AI Key', keyInput(s.settings.aiKey, (v) => { s.settings.aiKey = v; })),
@@ -378,13 +381,23 @@ function draw(root) {
             s.all.settings = s.settings;
             const jsKey = (s.settings.amapJsKey ?? '').trim();
             const sec = (s.settings.amapSecCode ?? '').trim();
-                if (!jsKey) {
-              s.mapCheck = '还没有填高德 JS Key。';
-            } else if (!sec) {
-              s.mapCheck = '还缺高德安全密钥。JS API 的安全模式必须配它——在高德控制台同一个应用里复制「安全密钥」，填到上面第二格。';
-                } else {
+            const webKey = (s.settings.amapWebKey ?? '').trim();
+            const lines = [];
+            if (!jsKey) {
+              lines.push('地图显示：还没填 JS Key。');
+            } else {
               try {
-                const res = await fetch(`/_AMapService/v3/geocode/geo?address=${encodeURIComponent('南京大学')}&key=${encodeURIComponent(jsKey)}`);
+                const AMap = await loadAmap(s.settings);
+                lines.push(AMap ? '地图显示：JS API 加载成功，地图能画出来。' : '地图显示：JS API 没加载出来。');
+              } catch (err) {
+                lines.push(`地图显示：${err.message}`);
+              }
+            }
+            if (!sec && !webKey) {
+              lines.push('服务接口：安全密钥和 Web服务 Key 都没填，路线与周边用不了。');
+            } else {
+              try {
+                const res = await fetch(`/_AMapService/v3/geocode/geo?address=${encodeURIComponent('南京大学')}&key=${encodeURIComponent(jsKey || 'x')}`);
                 const text = await res.text();
                 let detail = text.slice(0, 160);
                 try {
@@ -394,17 +407,24 @@ function draw(root) {
                   /* 保留原文 */
                 }
                 const nomatch = /PLAT_NOMATCH|10009/.test(detail);
-                s.mapCheck = nomatch
-                  ? `${res.status} · ${detail}\n解读：高德不接受这把 JS 端 Key 直接走 restapi。把上面的「地图密钥方式」改成「明文」，让 JS API 自己带安全密钥请求，通常就正常了。`
-                  : `${res.status} · ${detail}`;
+                if (nomatch && !webKey) {
+                  lines.push(`服务接口：${detail}\n`
+                    + '解读：普通接口（路线、周边、地理编码、天气）在高德属于「Web服务」，JS 端 Key 调不动它。'
+                    + '地图显示不受影响；再申请一把「Web服务」Key 填到上面第三格，路线和周边就能用了。');
+                } else if (nomatch) {
+                  lines.push(`服务接口：${detail}\n解读：Web服务 Key 也被拒了，检查这把 Key 的平台是不是选成了「Web服务」。`);
+                } else {
+                  lines.push(`服务接口：${res.status} · ${detail}`);
+                }
               } catch (err) {
-                s.mapCheck = `请求失败：${err.message}`;
+                lines.push(`服务接口：请求失败 ${err.message}`);
               }
             }
+            s.mapCheck = lines.join('\n');
             toast('检测完成，结果在下面');
             redraw();
           },
-        }, '检测高德配置')),
+        }, '检测地图与接口')),
       s.mapCheck ? h('p', { class: 'muted small' }, `检测结果：${s.mapCheck}`) : null,
       h('p', { class: 'muted' }, 'Key 只存在本机 data/settings.json，不写进代码，也不上传。')),
 

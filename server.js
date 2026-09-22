@@ -119,12 +119,28 @@ function logAmap(entry) {
 async function handleAmap(req, res, url, fetchImpl) {
   const settings = await readCollection('settings');
   const jscode = settings?.amapSecCode;
-  if (!jscode) return send(res, 400, { error: '还没有配置高德安全密钥，请到「数据与设置」里填写。' });
   const rest = url.pathname.replace(/^\/_AMapService\/?/, '');
+  const isStyle = rest.startsWith('v4/map/styles');
+  const webKey = (settings?.amapWebKey ?? '').trim();
+  if (!isStyle && !webKey && !jscode) {
+    return send(res, 400, { error: '还没有配置高德密钥（安全密钥或 Web服务 Key），请到「数据与设置」里填写。' });
+  }
+  if (isStyle && !jscode) {
+    return send(res, 400, { error: '还没有配置高德安全密钥，请到「数据与设置」里填写。' });
+  }
   const matched = AMAP_HOSTS.find((item) => rest.startsWith(item.prefix));
   const target = new URL((matched?.host ?? 'https://restapi.amap.com/') + rest);
   for (const [key, value] of url.searchParams) target.searchParams.set(key, value);
-  target.searchParams.set('jscode', jscode);
+  if (isStyle) {
+    // 地图样式走 JS 端，用 JS Key + 安全密钥
+    target.searchParams.set('jscode', jscode);
+  } else if (webKey) {
+    // 路线、周边、地理编码、天气这些是高德 Web 服务，有 Web服务 Key 就用它（平台匹配，最稳）
+    target.searchParams.set('key', webKey);
+    target.searchParams.delete('jscode');
+  } else {
+    target.searchParams.set('jscode', jscode);
+  }
   const init = { method: req.method };
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     init.body = await readBody(req);

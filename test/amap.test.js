@@ -1,4 +1,4 @@
-import { test, before, after } from 'node:test';
+import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -32,6 +32,12 @@ before(async () => {
 
 after(() => new Promise((resolve) => server.close(resolve)));
 
+beforeEach(async () => {
+  captured = undefined;
+  capturedOptions = undefined;
+  await writeCollection('settings', { version: 1, amapSecCode: 'SECRET-CODE' });
+});
+
 test('代理会把安全密钥补上并且不返回给页面', async () => {
   const res = await fetch(`${base}/_AMapService/v3/geocode/geo?address=南京大学&key=JSKEY`);
   assert.equal(res.status, 200);
@@ -47,7 +53,6 @@ test('没配安全密钥时给出明确错误', async () => {
   assert.equal(res.status, 400);
   const data = await res.json();
   assert.match(data.error, /安全密钥/);
-  await writeCollection('settings', { version: 1, amapSecCode: 'SECRET-CODE' });
 });
 
 test('代理只会把请求发给高德域名', async () => {
@@ -76,4 +81,25 @@ test('POST 请求带着请求体一起转发', async () => {
   assert.equal(capturedOptions.method, 'POST');
   assert.equal(capturedOptions.body, '{"address":"南京大学"}');
   assert.equal(capturedOptions.headers['Content-Type'], 'application/json');
+});
+
+test('配了 Web服务 Key 时用它调用 restapi，并且不带 jscode', async () => {
+  await writeCollection('settings', {
+    version: 1,
+    amapSecCode: 'SECRET-CODE',
+    amapJsKey: 'JSKEY',
+    amapWebKey: 'WEBKEY',
+  });
+  await fetch(`${base}/_AMapService/v3/geocode/geo?address=x&key=JSKEY`);
+  assert.ok(captured.includes('key=WEBKEY'), captured);
+  assert.ok(!captured.includes('jscode='), captured);
+  await fetch(`${base}/_AMapService/v4/map/styles?key=JSKEY`);
+  assert.ok(captured.includes('key=JSKEY'), captured);
+  assert.ok(captured.includes('jscode=SECRET-CODE'), captured);
+});
+
+test('没有 Web服务 Key 时退回 JS Key + jscode', async () => {
+  await fetch(`${base}/_AMapService/v3/geocode/geo?address=x&key=JSKEY`);
+  assert.ok(captured.includes('key=JSKEY'), captured);
+  assert.ok(captured.includes('jscode=SECRET-CODE'), captured);
 });
