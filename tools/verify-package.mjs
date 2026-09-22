@@ -8,8 +8,10 @@ const ARCHIVE = 'dist/个人工作生活-win32-x64/resources/app.asar';
 const CHECKS = [
   ['web\\core\\timetable.js', 'previewTimetable'],
   ['web\\core\\timetable.js', 'weekIndexOf'],
-  ['web\\modules\\settings.js', '检测高德配置'],
+  ['web\\modules\\settings.js', '检测地图与接口'],
+  ['web\\modules\\settings.js', 'Web服务 Key'],
   ['web\\modules\\settings.js', 'fillPreview'],
+  ['web\\core\\amap-config.js', 'securityJsCode'],
   ['web\\modules\\map.js', '安全密钥'],
   ['web\\styles.css', '--shadow-md'],
   ['web\\styles.css', '.preview'],
