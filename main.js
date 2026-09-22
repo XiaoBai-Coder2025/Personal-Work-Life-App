@@ -1,13 +1,27 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, Menu } from 'electron';
+import fs from 'node:fs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PERSONAL_APP_PORT || 4317);
 
-// 打包后用 exe 同级的 data 目录，源码运行时用项目里的 data 目录
+// 打包后数据放在用户目录（%APPDATA%\个人工作生活\data），重打包、挪位置都不会丢；
+// 源码运行时仍用项目里的 data 目录
 if (app.isPackaged) {
-  process.env.PERSONAL_APP_DATA_DIR = path.join(path.dirname(process.execPath), 'data');
+  app.setName('个人工作生活');
+  const userData = path.join(app.getPath('userData'), 'data');
+  const legacy = path.join(path.dirname(process.execPath), 'data');
+  // 老版本把数据放在 exe 旁边，第一次启动时搬过来
+  if (!fs.existsSync(userData) && fs.existsSync(legacy)) {
+    try {
+      fs.cpSync(legacy, userData, { recursive: true });
+      console.log('[data] 已把 exe 旁边的 data 迁移到', userData);
+    } catch (err) {
+      console.warn('[data] 迁移老数据失败：', err.message);
+    }
+  }
+  process.env.PERSONAL_APP_DATA_DIR = userData;
 }
 
 async function startServer() {
