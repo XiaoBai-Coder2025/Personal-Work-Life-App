@@ -11,9 +11,12 @@
   --ok: light-dark(#15803d, #4ade80);
   --fixed: light-dark(#7c5cff, #a892ff);
   --gap: 16px;
-  --shadow-sm: 0 1px 2px light-dark(rgba(20, 24, 32, .06), rgba(0, 0, 0, .4));
-  --shadow-md: 0 4px 14px light-dark(rgba(20, 24, 32, .08), rgba(0, 0, 0, .5));
-  --shadow-lg: 0 10px 30px light-dark(rgba(20, 24, 32, .14), rgba(0, 0, 0, .6));
+  --shadow-sm: 0 1px 2px light-dark(rgba(28, 32, 40, .035), rgba(0, 0, 0, .3)),
+    0 2px 6px light-dark(rgba(28, 32, 40, .03), rgba(0, 0, 0, .22));
+  --shadow-md: 0 2px 6px light-dark(rgba(28, 32, 40, .045), rgba(0, 0, 0, .3)),
+    0 12px 28px light-dark(rgba(28, 32, 40, .05), rgba(0, 0, 0, .32));
+  --shadow-lg: 0 6px 18px light-dark(rgba(28, 32, 40, .08), rgba(0, 0, 0, .38)),
+    0 20px 48px light-dark(rgba(28, 32, 40, .08), rgba(0, 0, 0, .4));
   --ring: 0 0 0 1px light-dark(rgba(20, 24, 32, .04), rgba(255, 255, 255, .04));
 }
 
@@ -119,7 +122,7 @@ body {
   padding: 16px 18px; box-shadow: var(--shadow-sm), var(--ring); min-width: 0;
   transition: box-shadow .2s ease, border-color .2s ease;
 }
-.panel:hover { box-shadow: var(--shadow-md), var(--ring); }
+.panel:hover { border-color: color-mix(in srgb, var(--muted) 22%, var(--line)); }
 .panel h2 { margin: 0 0 12px; font-size: 12px; font-weight: 500; letter-spacing: .04em; color: var(--muted); }
 .panel h3 { margin: 16px 0 8px; font-size: 14px; font-weight: 500; }
 .panel h3:first-of-type { margin-top: 0; }
@@ -130,7 +133,7 @@ body {
 input, select {
   padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px;
   font: inherit; background: var(--surface); color: var(--text);
-  box-shadow: var(--shadow-sm); transition: border-color .16s ease, box-shadow .16s ease;
+  transition: border-color .16s ease, box-shadow .16s ease;
 }
 textarea {
   padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; font: inherit;
@@ -144,7 +147,6 @@ button {
   padding: 6px 13px; border: 1px solid var(--line); border-radius: 8px;
   background: var(--surface); color: var(--text); font: inherit; font-size: 13px; cursor: pointer;
   transition: background .16s ease, border-color .16s ease, color .16s ease, transform .1s ease;
-  box-shadow: var(--shadow-sm);
 }
 button:hover { border-color: var(--muted); }
 button:active { transform: scale(.965); }
@@ -284,6 +286,7 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .msg { padding: 9px 12px; border-radius: 10px; background: var(--surface-2); margin-bottom: 8px; white-space: pre-wrap; font-size: 14px; }
 .msg.user { background: var(--accent); color: #fff; margin-left: 48px; }
 .readlist { padding: 4px 0 8px 12px; font-size: 12px; color: var(--muted); display: grid; gap: 3px; }
+.preview { display: grid; gap: 3px; margin: 6px 0 2px; max-height: 150px; overflow-y: auto; }
 
 .toast {
   position: fixed; left: 50%; bottom: 88px; transform: translateX(-50%);

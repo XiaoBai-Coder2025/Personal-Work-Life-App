@@ -2,7 +2,7 @@ import { h, clear, toast } from '../core/ui.js';
 import { COLLECTIONS, emptyOf, exportBackup, importBackup, load, save } from '../core/api.js';
 import { applyTheme } from '../core/theme.js';
 import { fillSampleData } from '../core/sample.js';
-import { parseTimetable, WEEK_LABEL } from '../core/timetable.js';
+import { parseTimetable, previewTimetable, WEEK_LABEL, weekTextOf } from '../core/timetable.js';
 
 const IDENTITIES = [
   '在校大学生（985/211/双一流）',
@@ -42,6 +42,7 @@ async function ensure() {
     newRoutine: previous ?? { title: '', place: '', from: '08:00', to: '09:40', weekdays: [], weeks: 'all' },
     newPlace: { name: '', tag: '常用' },
     importText: state?.importText ?? '',
+    mapCheck: state?.mapCheck ?? null,
   };
   return state;
 }
@@ -88,6 +89,21 @@ function draw(root) {
   clear(root);
   const redraw = () => draw(root);
 
+  const preview = h('div', { class: 'preview' });
+  const fillPreview = () => {
+    clear(preview);
+    const rows = previewTimetable(s.importText ?? '');
+    if (!rows.length) return;
+    const ok = rows.filter((row) => row.ok).length;
+    preview.append(h('div', { class: 'small muted' }, `识别到 ${ok} 门课，${rows.length - ok} 行有问题`));
+    for (const row of rows) {
+      preview.append(h('div', { class: `small${row.ok ? '' : ' warn'}` },
+        row.ok
+          ? `✓ ${row.item.title} · ${row.item.weekdays.map((w) => WD_NAMES[w - 1]).join(' ')} ${row.item.from}-${row.item.to} · ${weekTextOf(row.item)}${row.item.place ? ` · ${row.item.place}` : ''}`
+          : `✗ ${row.line} —— ${row.error}`));
+    }
+  };
+
   const filePicker = h('input', {
     type: 'file',
     accept: '.json',
@@ -114,7 +130,7 @@ function draw(root) {
   const routineRows = s.routine.items.length
     ? s.routine.items.map((r, index) => h('div', { class: 'itemline' },
       h('span', { class: 'grow' },
-        `${r.title} · ${r.weekdays.map((w) => WD_NAMES[w - 1]).join(' ')} ${r.from}-${r.to} · ${WEEK_LABEL[r.weeks ?? 'all']}${r.place ? ` · ${r.place}` : ''}`),
+        `${r.title} · ${r.weekdays.map((w) => WD_NAMES[w - 1]).join(' ')} ${r.from}-${r.to} · ${weekTextOf(r)}${r.place ? ` · ${r.place}` : ''}`),
       h('button', {
         class: 'ghost',
         onclick: async () => {
@@ -257,13 +273,18 @@ function draw(root) {
         },
       }, '添加'),
       h('h3', {}, '批量导入课表'),
-      h('p', { class: 'muted' }, '每行一门课，字段用 | 或逗号分开：课程名 | 星期 | 时间 | 单双周（可省）| 地点（可省）。星期可写「周一 周三」，也可以写 1 3。'),
+      h('p', { class: 'muted' }, '每行一门课。字段可以用 | 或逗号分开，也可以只用空格。顺序是：课程名 星期 时间 单双周（可省）周次范围（可省）地点（可省）。'),
+      h('p', { class: 'muted small' }, '例子：高等数学 周一 周三 08:00-09:40 单周 第1-16周 三教302'),
       h('textarea', {
         rows: '5',
-        placeholder: '高等数学 | 周一 周三 | 08:00-09:40 | 单周 | 三教 302\n大学英语 | 周五 | 08:00-09:40 | 双周',
+        placeholder: '高等数学 | 周一 周三 | 08:00-09:40 | 单周 | 第1-16周 | 三教 302\n大学英语 | 周五 | 08:00-09:40 | 双周',
         value: s.importText,
-        oninput: (event) => { s.importText = event.target.value; },
+        oninput: (event) => {
+          s.importText = event.target.value;
+          fillPreview();
+        },
       }),
+      preview,
       h('button', {
         class: 'primary',
         onclick: async () => {
@@ -281,6 +302,8 @@ function draw(root) {
                 from: item.from,
                 to: item.to,
                 weeks: item.weeks,
+                weekFrom: item.weekFrom,
+                weekTo: item.weekTo,
                 place: item.place,
                 startDate: '',
                 endDate: '',
@@ -289,6 +312,7 @@ function draw(root) {
             await save('routine', s.routine);
             s.all.routine = s.routine;
             s.importText = '';
+            fillPreview();
             toast(`已导入 ${list.length} 门课`);
             redraw();
           } catch (err) {
@@ -335,6 +359,38 @@ function draw(root) {
           toast('Key 已保存');
         },
       }, '保存 Key'),
+      h('div', { class: 'row' },
+        h('button', {
+          onclick: async () => {
+            await save('settings', s.settings);
+            s.all.settings = s.settings;
+            const jsKey = (s.settings.amapJsKey ?? '').trim();
+            const sec = (s.settings.amapSecCode ?? '').trim();
+            if (!jsKey) {
+              s.mapCheck = '还没有填高德 JS Key。';
+            } else if (!sec) {
+              s.mapCheck = '还缺高德安全密钥。JS API 的安全模式必须配它——在高德控制台同一个应用里复制「安全密钥」，填到上面第二格。';
+            } else {
+              try {
+                const res = await fetch(`/_AMapService/v3/geocode/geo?address=${encodeURIComponent('南京大学')}&key=${encodeURIComponent(jsKey)}`);
+                const text = await res.text();
+                let detail = text.slice(0, 160);
+                try {
+                  const data = JSON.parse(text);
+                  detail = `status=${data.status} · ${data.info ?? ''} ${data.infocode ?? ''}`;
+                } catch {
+                  /* 保留原文 */
+                }
+                s.mapCheck = `${res.status} · ${detail}`;
+              } catch (err) {
+                s.mapCheck = `请求失败：${err.message}`;
+              }
+            }
+            toast('检测完成，结果在下面');
+            redraw();
+          },
+        }, '检测高德配置')),
+      s.mapCheck ? h('p', { class: 'muted small' }, `检测结果：${s.mapCheck}`) : null,
       h('p', { class: 'muted' }, 'Key 只存在本机 data/settings.json，不写进代码，也不上传。')),
 
     panel('数据',

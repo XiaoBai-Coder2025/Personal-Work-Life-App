@@ -304,10 +304,19 @@ export async function renderMap(root) {
   await ensure();
   draw();
   if (!state.amap && !state.mapError) {
+    const jsKey = (state.settings.amapJsKey ?? '').trim();
+    const sec = (state.settings.amapSecCode ?? '').trim();
+    if (!jsKey || !sec) {
+      state.mapError = !jsKey
+        ? '还没有配置高德 JS Key，请到「数据与设置」里填写。'
+        : '还没有配置高德安全密钥。JS API 的安全模式必须配它：在高德控制台同一个应用里复制「安全密钥」，填到「数据与设置」的第二格。';
+      drawMap();
+      return;
+    }
     try {
       state.amap = await loadAmap(state.settings);
     } catch (err) {
-      state.mapError = err.message;
+      state.mapError = `${err.message}（如果 Key 类型不是「Web端(JS API)」也会加载失败）`;
     }
     drawMap();
   }
