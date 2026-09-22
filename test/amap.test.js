@@ -11,12 +11,14 @@ const { writeCollection } = await import('../src/store.js');
 let server;
 let base;
 let captured;
+let capturedOptions;
 
 before(async () => {
   await writeCollection('settings', { version: 1, amapSecCode: 'SECRET-CODE' });
   server = createServer({
-    fetchImpl: async (url) => {
+    fetchImpl: async (url, options) => {
       captured = url;
+      capturedOptions = options ?? {};
       return {
         status: 200,
         headers: new Map([['content-type', 'application/json']]),
@@ -52,4 +54,26 @@ test('代理只会把请求发给高德域名', async () => {
   await fetch(`${base}/_AMapService/v3/place/text?keywords=图书馆`);
   assert.ok(captured.startsWith('https://restapi.amap.com/'));
   assert.ok(captured.includes('keywords='));
+});
+
+test('地图样式请求要走 webapi 域名', async () => {
+  await fetch(`${base}/_AMapService/v4/map/styles?key=JSKEY`);
+  assert.ok(captured.startsWith('https://webapi.amap.com/v4/map/styles'), captured);
+  assert.ok(captured.includes('jscode=SECRET-CODE'));
+});
+
+test('普通接口仍然走 restapi 域名', async () => {
+  await fetch(`${base}/_AMapService/v3/geocode/geo?address=x&key=JSKEY`);
+  assert.ok(captured.startsWith('https://restapi.amap.com/v3/geocode/geo'), captured);
+});
+
+test('POST 请求带着请求体一起转发', async () => {
+  await fetch(`${base}/_AMapService/v3/geocode/geo`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{"address":"南京大学"}',
+  });
+  assert.equal(capturedOptions.method, 'POST');
+  assert.equal(capturedOptions.body, '{"address":"南京大学"}');
+  assert.equal(capturedOptions.headers['Content-Type'], 'application/json');
 });

@@ -8,7 +8,8 @@ export async function loadAmap(settings) {
   if (globalThis.AMap) return globalThis.AMap;
   if (!settings?.amapJsKey) throw new Error('还没有配置高德 JS Key，请到「数据与设置」里填写。');
   if (loading) return loading;
-  globalThis._AMapSecurityConfig = { serviceHost: location.host };
+  // 高德要求 serviceHost 必须带 /_AMapService 这一段，少写就会提示「代理服务请以_AMapService作为一级路由」
+  globalThis._AMapSecurityConfig = { serviceHost: `${location.origin}/_AMapService` };
   const plugins = ['AMap.PlaceSearch', 'AMap.Geocoder', 'AMap.Driving', 'AMap.Walking', 'AMap.Riding', 'AMap.Transfer'];
   loading = new Promise((resolve, reject) => {
     const script = document.createElement('script');

@@ -100,14 +100,26 @@ async function handleApi(req, res, parts, fetchImpl) {
   return send(res, 404, { error: '没有这个接口' });
 }
 
+// 高德的代理规则：地图样式走 webapi，其余接口走 restapi（官方文档的 nginx 示例同此）
+const AMAP_HOSTS = [
+  { prefix: 'v4/map/styles', host: 'https://webapi.amap.com/' },
+];
+
 async function handleAmap(req, res, url, fetchImpl) {
   const settings = await readCollection('settings');
   const jscode = settings?.amapSecCode;
   if (!jscode) return send(res, 400, { error: '还没有配置高德安全密钥，请到「数据与设置」里填写。' });
-  const target = new URL(`https://restapi.amap.com/${url.pathname.replace(/^\/_AMapService\//, '')}`);
+  const rest = url.pathname.replace(/^\/_AMapService\/?/, '');
+  const matched = AMAP_HOSTS.find((item) => rest.startsWith(item.prefix));
+  const target = new URL((matched?.host ?? 'https://restapi.amap.com/') + rest);
   for (const [key, value] of url.searchParams) target.searchParams.set(key, value);
   target.searchParams.set('jscode', jscode);
-  const upstream = await fetchImpl(target.toString());
+  const init = { method: req.method };
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    init.body = await readBody(req);
+    init.headers = { 'Content-Type': req.headers['content-type'] ?? 'application/json' };
+  }
+  const upstream = await fetchImpl(target.toString(), init);
   const text = await upstream.text();
   const type = upstream.headers?.get?.('content-type') ?? 'application/json; charset=utf-8';
   return send(res, upstream.status ?? 200, text, type);
@@ -119,7 +131,7 @@ export function createServer({ fetchImpl = globalThis.fetch } = {}) {
     const parts = url.pathname.split('/').filter(Boolean);
     try {
       if (parts[0] === '_AMapService') {
-        if (req.method !== 'GET') return send(res, 405, { error: '不支持的方法' });
+        if (!['GET', 'HEAD', 'POST'].includes(req.method)) return send(res, 405, { error: '不支持的方法' });
         return await handleAmap(req, res, url, fetchImpl);
       }
       if (parts[0] === 'api') return await handleApi(req, res, parts, fetchImpl);
