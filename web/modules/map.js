@@ -112,6 +112,8 @@ function drawMap() {
     state.overlays = [];
   }
   if (!state.map) {
+    // 建地图前必须把容器清干净，否则之前画的示意图会盖在地图上、也会挡住点击
+    box.replaceChildren();
     const center = state.places.find((p) => p.lng != null);
     state.map = new state.amap.Map('amap', {
       zoom: 12,
@@ -411,14 +413,20 @@ export async function renderMap(root) {
       state.mapError = !jsKey
         ? '还没有配置高德 JS Key，请到「数据与设置」里填写。'
         : '还没有配置高德安全密钥。JS API 的安全模式必须配它：在高德控制台同一个应用里复制「安全密钥」，填到「数据与设置」的第二格。';
-      drawMap();
+      draw();
       return;
     }
     try {
       state.amap = await loadAmap(state.settings);
+      // 拿到 SDK 后整页重画：这一次 #amap 是干净容器，地图才建得起来
+      if (state.map) {
+        state.map.destroy();
+        state.map = null;
+        state.overlays = [];
+      }
     } catch (err) {
       state.mapError = `${err.message}。还可以试试：把「数据与设置」里的地图密钥方式改成「明文」再打开本页。`;
     }
-    drawMap();
+    draw();
   }
 }
