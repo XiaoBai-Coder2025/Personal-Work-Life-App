@@ -15,12 +15,25 @@ export async function loadAmap(settings) {
     origin: location.origin,
     secCode: settings?.amapSecCode,
   });
-  const plugins = ['AMap.PlaceSearch', 'AMap.Geocoder', 'AMap.Driving', 'AMap.Walking', 'AMap.Riding', 'AMap.Transfer'];
   loading = new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(settings.amapJsKey)}&plugin=${plugins.join(',')}`;
-    script.onload = () => resolve(globalThis.AMap);
+    // 插件不在这里挂：插件名写错会让整个脚本加载失败，改成用到时用 AMap.plugin 按需加载
+    script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(settings.amapJsKey)}`;
+    const timer = setTimeout(() => {
+      loading = null;
+      reject(new Error('高德地图脚本加载超时，请检查网络与 Key'));
+    }, 15000);
+    script.onload = () => {
+      clearTimeout(timer);
+      if (!globalThis.AMap) {
+        loading = null;
+        reject(new Error('高德脚本回来了，但没有拿到 AMap：通常是 Key 填错、Key 平台不是「Web端(JS API)」，或这把 Key 被限制'));
+        return;
+      }
+      resolve(globalThis.AMap);
+    };
     script.onerror = () => {
+      clearTimeout(timer);
       loading = null;
       reject(new Error('高德地图脚本加载失败，请检查网络与 Key'));
     };
