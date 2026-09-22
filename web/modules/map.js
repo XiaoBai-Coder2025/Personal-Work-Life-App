@@ -1,7 +1,7 @@
 import { h, clear, toast } from '../core/ui.js';
 import { load, save } from '../core/api.js';
 import { bestOrder, departPlan, haversineKm, estimateMinutes } from '../core/route.js';
-import { loadAmap, searchPlace, searchNearby, geocode, lngLatToName } from '../core/amap.js';
+import { loadAmap, searchNearby, geocode, lngLatToName } from '../core/amap.js';
 import { colorFor } from '../core/colors.js';
 
 function drawSchematic(box) {
@@ -56,8 +56,9 @@ async function ensure() {
       mapError: '',
       map: null,
       amap: null,
-      overlays: [],
-      searchState: '',
+    overlays: [],
+    searchState: '',
+    city: '',
     };
   }
   state.places = items;
@@ -221,6 +222,14 @@ function draw() {
             value: state.query,
             oninput: (e) => { state.query = e.target.value; },
           }),
+          h('input', {
+            type: 'text',
+            placeholder: '城市',
+            style: 'max-width:78px',
+            title: '高德的地点搜索按城市找更准，留空则全国范围',
+            value: state.city,
+            oninput: (e) => { state.city = e.target.value; },
+          }),
           h('button', {
             class: 'primary',
             onclick: async () => {
@@ -228,10 +237,15 @@ function draw() {
               state.searchState = '正在搜索…';
               draw();
               try {
-                state.results = await searchPlace(state.query.trim());
-                state.searchState = state.results.length
-                  ? `找到 ${state.results.length} 个，点「标记」加到地图`
-                  : '没有搜到结果，换个写法试试';
+                const res = await fetch(`/api/poi?keywords=${encodeURIComponent(state.query.trim())}&city=${encodeURIComponent(state.city.trim())}`);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error ?? '搜索失败');
+                state.results = data.items ?? [];
+                state.searchState = data.message
+                  ? data.message
+                  : state.results.length
+                    ? `找到 ${state.results.length} 个，点「标记」加到地图`
+                    : '没有搜到结果：换个写法，或者把城市填上再试';
               } catch (err) {
                 state.results = [];
                 state.searchState = `搜索失败：${err.message}`;

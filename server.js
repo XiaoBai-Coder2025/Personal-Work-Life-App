@@ -44,7 +44,7 @@ async function serveStatic(res, urlPath) {
   }
 }
 
-async function handleApi(req, res, parts, fetchImpl) {
+async function handleApi(req, res, url, parts, fetchImpl) {
   if (parts[1] === 'health') return send(res, 200, { ok: true });
 
   if (parts[1] === 'data' && parts[2]) {
@@ -80,6 +80,59 @@ async function handleApi(req, res, parts, fetchImpl) {
 
   if (parts[1] === 'amap-log' && req.method === 'GET') {
     return send(res, 200, { items: amapLog });
+  }
+
+  // 地点搜索走服务端：用 Web服务 Key 直连高德，错误原文带回来，页面不再"点了没反应"
+  if (parts[1] === 'poi' && req.method === 'GET') {
+    const keywords = (url.searchParams.get('keywords') ?? '').trim();
+    const city = (url.searchParams.get('city') ?? '').trim();
+    if (!keywords) return send(res, 400, { error: '搜索关键词不能为空' });
+    const settings = await readCollection('settings');
+    const webKey = (settings?.amapWebKey ?? '').trim();
+    if (!webKey) {
+      return send(res, 400, { error: '地点搜索需要一把高德「Web服务 Key」，请到「数据与设置」里填写。' });
+    }
+    const target = new URL('https://restapi.amap.com/v3/place/text');
+    target.searchParams.set('key', webKey);
+    target.searchParams.set('keywords', keywords);
+    if (city) target.searchParams.set('city', city);
+    target.searchParams.set('offset', '10');
+    target.searchParams.set('page', '1');
+    target.searchParams.set('extensions', 'base');
+    logAmap({
+      at: new Date().toTimeString().slice(0, 8),
+      method: 'GET',
+      path: '/v3/place/text',
+      status: 200,
+      reply: '（服务端直连）',
+    });
+    try {
+      const upstream = await fetchImpl(target.toString());
+      const text = await upstream.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        return send(res, 200, { items: [], message: `高德返回的不是 JSON：${text.slice(0, 120)}` });
+      }
+      if (data.status !== '1') {
+        return send(res, 200, { items: [], message: `高德拒绝了这次搜索：${data.info ?? '未知'} ${data.infocode ?? ''}`.trim() });
+      }
+      const items = (data.pois ?? [])
+        .filter((poi) => typeof poi.location === 'string' && poi.location.includes(','))
+        .map((poi) => {
+          const [lng, lat] = poi.location.split(',').map(Number);
+          return {
+            name: poi.name,
+            address: poi.address ?? (typeof poi.pname === 'string' ? poi.pname : ''),
+            lng,
+            lat,
+          };
+        });
+      return send(res, 200, { items });
+    } catch (err) {
+      return send(res, 200, { items: [], message: `请求高德失败：${err.message}` });
+    }
   }
 
   if (parts[1] === 'import' && parts[2] === 'parse' && req.method === 'POST') {
@@ -168,7 +221,7 @@ export function createServer({ fetchImpl = globalThis.fetch } = {}) {
         if (!['GET', 'HEAD', 'POST'].includes(req.method)) return send(res, 405, { error: '不支持的方法' });
         return await handleAmap(req, res, url, fetchImpl);
       }
-      if (parts[0] === 'api') return await handleApi(req, res, parts, fetchImpl);
+      if (parts[0] === 'api') return await handleApi(req, res, url, parts, fetchImpl);
       if (req.method !== 'GET') return send(res, 405, { error: '不支持的方法' });
       return await serveStatic(res, url.pathname);
     } catch (err) {

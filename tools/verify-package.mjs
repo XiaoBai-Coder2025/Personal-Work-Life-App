@@ -15,6 +15,7 @@ const CHECKS = [
   ['web\\modules\\map.js', '安全密钥'],
   ['web\\modules\\map.js', '直接在地图上点一下'],
   ['web\\core\\amap.js', 'lngLatToName'],
+  ['server.js', 'place/text'],
   ['web\\styles.css', '--shadow-md'],
   ['web\\styles.css', '.preview'],
 ];
