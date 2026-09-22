@@ -17,7 +17,7 @@ if not exist "node_modules\electron\dist\electron.exe" (
 
 for /f "delims=" %%v in ('node -p "require('./node_modules/electron/package.json').version"') do set "EVER=%%v"
 set "ZIPARG="
-for /f "delims=" %%i in ('dir /b /s "%LOCALAPPDATA%\electron\Cache\electron-v%_EVER%-win32-x64.zip" 2^>nul') do set "ZIPFILE=%%i"
+for /f "delims=" %%i in ('dir /b /s "%LOCALAPPDATA%\electron\Cache\electron-v%EVER%-win32-x64.zip" 2^>nul') do set "ZIPFILE=%%i"
 if defined ZIPFILE for %%i in ("%ZIPFILE%") do set "ZIPDIR=%%~dpi"
 if defined ZIPDIR set "ZIPDIR=%ZIPDIR:~0,-1%"
 if defined ZIPDIR set "ZIPARG=--electron-zip-dir="%ZIPDIR%""
