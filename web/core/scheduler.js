@@ -52,7 +52,7 @@ export function buildDay({ dateKey, routineItems = [], events = [], tasks = [], 
   const windowTo = profile.sleep || '23:00';
   const dayEvents = events.filter((e) => e.date === dateKey);
   const anchors = [
-    ...routineOnDate(routineItems, dateKey),
+    ...routineOnDate(routineItems, dateKey, { termStart: profile.termStart ?? '' }),
     ...dayEvents.filter((e) => e.from && e.to).map((e) => ({ ...e, source: 'event' })),
   ].sort((a, b) => toMinutes(a.from) - toMinutes(b.from));
 

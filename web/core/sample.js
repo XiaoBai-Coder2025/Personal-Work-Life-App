@@ -21,6 +21,7 @@ export async function fillSampleData() {
     wake: '07:00',
     sleep: '23:30',
     commute: '地铁',
+    termStart: '',
   });
 
   await save('places', {
@@ -36,10 +37,10 @@ export async function fillSampleData() {
     version: 1,
     items: [
       {
-        id: 'sample-r1', title: '高等数学', weekdays: [1, 3], from: '08:00', to: '09:40', place: '三教 302', startDate: '', endDate: '',
+        id: 'sample-r1', title: '高等数学', weekdays: [1, 3], from: '08:00', to: '09:40', weeks: 'odd', place: '三教 302', startDate: '', endDate: '',
       },
       {
-        id: 'sample-r2', title: '人工智能导论', weekdays: [2, 4], from: '10:00', to: '11:40', place: '一教 105', startDate: '', endDate: '',
+        id: 'sample-r2', title: '人工智能导论', weekdays: [2, 4], from: '10:00', to: '11:40', weeks: 'all', place: '一教 105', startDate: '', endDate: '',
       },
     ],
   });

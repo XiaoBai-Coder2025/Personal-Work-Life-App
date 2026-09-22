@@ -2,6 +2,7 @@ import { h, clear, toast } from '../core/ui.js';
 import { COLLECTIONS, emptyOf, exportBackup, importBackup, load, save } from '../core/api.js';
 import { applyTheme } from '../core/theme.js';
 import { fillSampleData } from '../core/sample.js';
+import { parseTimetable, WEEK_LABEL } from '../core/timetable.js';
 
 const IDENTITIES = [
   '在校大学生（985/211/双一流）',
@@ -38,8 +39,9 @@ async function ensure() {
     },
     routine: { version: 1, items: all.routine.items ?? [] },
     places: { version: 1, items: all.places.items ?? [] },
-    newRoutine: previous ?? { title: '', place: '', from: '08:00', to: '09:40', weekdays: [] },
+    newRoutine: previous ?? { title: '', place: '', from: '08:00', to: '09:40', weekdays: [], weeks: 'all' },
     newPlace: { name: '', tag: '常用' },
+    importText: state?.importText ?? '',
   };
   return state;
 }
@@ -112,7 +114,7 @@ function draw(root) {
   const routineRows = s.routine.items.length
     ? s.routine.items.map((r, index) => h('div', { class: 'itemline' },
       h('span', { class: 'grow' },
-        `${r.title} · ${r.weekdays.map((w) => WD_NAMES[w - 1]).join(' ')} ${r.from}-${r.to}${r.place ? ` · ${r.place}` : ''}`),
+        `${r.title} · ${r.weekdays.map((w) => WD_NAMES[w - 1]).join(' ')} ${r.from}-${r.to} · ${WEEK_LABEL[r.weeks ?? 'all']}${r.place ? ` · ${r.place}` : ''}`),
       h('button', {
         class: 'ghost',
         onclick: async () => {
@@ -206,10 +208,26 @@ function draw(root) {
       h('p', { class: 'muted' }, '明暗与配色保存在本机，重启后保持上次的设置。')),
 
     panel('固定课表 / 工作表',
+      field('学期第一周的周一（决定单双周怎么数，留空就按自然周）',
+        textInput(s.profile.termStart ?? '', (v) => { s.profile.termStart = v; }, 'date')),
+      h('button', {
+        onclick: async () => {
+          await save('profile', s.profile);
+          toast('已保存学期起始周');
+        },
+      }, '保存学期起始周'),
       ...routineRows,
       h('h3', {}, '添加一条'),
       field('名称', textInput(s.newRoutine.title, (v) => { s.newRoutine.title = v; })),
       h('div', { class: 'field' }, h('label', {}, '星期'), h('div', { class: 'row' }, weekdayButtons)),
+      h('div', { class: 'field' }, h('label', {}, '单双周'),
+        h('div', { class: 'row' }, [['all', '每周'], ['odd', '单周'], ['even', '双周']].map(([value, name]) => h('button', {
+          class: s.newRoutine.weeks === value ? 'primary' : '',
+          onclick: () => {
+            s.newRoutine.weeks = value;
+            redraw();
+          },
+        }, name)))),
       h('div', { class: 'splits' },
         field('开始时间', textInput(s.newRoutine.from, (v) => { s.newRoutine.from = v; }, 'time')),
         field('结束时间', textInput(s.newRoutine.to, (v) => { s.newRoutine.to = v; }, 'time'))),
@@ -226,17 +244,58 @@ function draw(root) {
             weekdays: [...nr.weekdays].sort((a, b) => a - b),
             from: nr.from,
             to: nr.to,
+            weeks: nr.weeks,
             place: nr.place.trim(),
             startDate: '',
             endDate: '',
           });
           await save('routine', s.routine);
           s.all.routine = s.routine;
-          s.newRoutine = { title: '', place: '', from: '08:00', to: '09:40', weekdays: [] };
+          s.newRoutine = { title: '', place: '', from: '08:00', to: '09:40', weekdays: [], weeks: 'all' };
           toast('已添加固定日程');
           redraw();
         },
-      }, '添加')),
+      }, '添加'),
+      h('h3', {}, '批量导入课表'),
+      h('p', { class: 'muted' }, '每行一门课，字段用 | 或逗号分开：课程名 | 星期 | 时间 | 单双周（可省）| 地点（可省）。星期可写「周一 周三」，也可以写 1 3。'),
+      h('textarea', {
+        rows: '5',
+        placeholder: '高等数学 | 周一 周三 | 08:00-09:40 | 单周 | 三教 302\n大学英语 | 周五 | 08:00-09:40 | 双周',
+        value: s.importText,
+        oninput: (event) => { s.importText = event.target.value; },
+      }),
+      h('button', {
+        class: 'primary',
+        onclick: async () => {
+          try {
+            const list = parseTimetable(s.importText);
+            if (!list.length) {
+              toast('没有解析到课程，检查一下格式');
+              return;
+            }
+            for (const item of list) {
+              s.routine.items.push({
+                id: `r${Date.now()}${s.routine.items.length}`,
+                title: item.title,
+                weekdays: item.weekdays,
+                from: item.from,
+                to: item.to,
+                weeks: item.weeks,
+                place: item.place,
+                startDate: '',
+                endDate: '',
+              });
+            }
+            await save('routine', s.routine);
+            s.all.routine = s.routine;
+            s.importText = '';
+            toast(`已导入 ${list.length} 门课`);
+            redraw();
+          } catch (err) {
+            toast(err.message);
+          }
+        },
+      }, '导入这批课')),
 
     panel('常用地址',
       ...placeRows,
