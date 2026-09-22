@@ -30,26 +30,26 @@ export async function loadAmap(settings) {
 }
 
 export function searchPlace(keyword) {
-  return new Promise((resolve, reject) => {
-    if (!globalThis.AMap?.PlaceSearch) return reject(new Error('地图插件还没准备好'));
-    const search = new globalThis.AMap.PlaceSearch({ pageSize: 5 });
+  return ensurePlugins(['AMap.PlaceSearch']).then((AMap) => new Promise((resolve, reject) => {
+    const search = new AMap.PlaceSearch({ pageSize: 8 });
     search.search(keyword, (status, result) => {
       if (status !== 'complete') return reject(new Error('没有搜到结果'));
-      const list = (result.poiList?.pois ?? []).map((poi) => ({
-        name: poi.name,
-        address: poi.address ?? poi.pname ?? '',
-        lng: poi.location?.lng,
-        lat: poi.location?.lat,
-      }));
+      const list = (result.poiList?.pois ?? [])
+        .filter((poi) => poi.location)
+        .map((poi) => ({
+          name: poi.name,
+          address: poi.address ?? poi.pname ?? '',
+          lng: poi.location.lng,
+          lat: poi.location.lat,
+        }));
       return resolve(list);
     });
-  });
+  }));
 }
 
 export function searchNearby(keyword, center) {
-  return new Promise((resolve, reject) => {
-    if (!globalThis.AMap?.PlaceSearch) return reject(new Error('地图插件还没准备好'));
-    const search = new globalThis.AMap.PlaceSearch({ pageSize: 5 });
+  return ensurePlugins(['AMap.PlaceSearch']).then((AMap) => new Promise((resolve, reject) => {
+    const search = new AMap.PlaceSearch({ pageSize: 5 });
     search.searchNearBy(keyword, center, 1500, (status, result) => {
       if (status !== 'complete') return reject(new Error('附近没有搜到结果'));
       const list = (result.poiList?.pois ?? []).map((poi) => ({
@@ -59,17 +59,33 @@ export function searchNearby(keyword, center) {
       }));
       return resolve(list);
     });
-  });
+  }));
 }
 
 export function geocode(address) {
-  return new Promise((resolve, reject) => {
-    if (!globalThis.AMap?.Geocoder) return reject(new Error('地图插件还没准备好'));
-    const geocoder = new globalThis.AMap.Geocoder();
+  return ensurePlugins(['AMap.Geocoder']).then((AMap) => new Promise((resolve, reject) => {
+    const geocoder = new AMap.Geocoder();
     geocoder.getLocation(address, (status, result) => {
       if (status !== 'complete' || !result.geocodes?.length) return reject(new Error('没找到这个地址'));
       const { lng, lat } = result.geocodes[0].location;
       return resolve({ lng, lat });
+    });
+  }));
+}
+
+export function lngLatToName(lnglat) {
+  return { lng: Number(lnglat.getLng().toFixed(6)), lat: Number(lnglat.getLat().toFixed(6)) };
+}
+
+function ensurePlugins(names) {
+  return new Promise((resolve, reject) => {
+    const AMap = globalThis.AMap;
+    if (!AMap) return reject(new Error('地图还没加载好'));
+    if (typeof AMap.plugin !== 'function') return resolve(AMap);
+    return AMap.plugin(names, () => {
+      const missing = names.filter((name) => typeof AMap[name.split('.').pop()] !== 'function');
+      if (missing.length) reject(new Error(`地图插件没装上：${missing.join('、')}`));
+      else resolve(AMap);
     });
   });
 }

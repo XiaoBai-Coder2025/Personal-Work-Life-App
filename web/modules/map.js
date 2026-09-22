@@ -1,7 +1,7 @@
 import { h, clear, toast } from '../core/ui.js';
 import { load, save } from '../core/api.js';
 import { bestOrder, departPlan, haversineKm, estimateMinutes } from '../core/route.js';
-import { loadAmap, searchPlace, searchNearby, geocode } from '../core/amap.js';
+import { loadAmap, searchPlace, searchNearby, geocode, lngLatToName } from '../core/amap.js';
 import { colorFor } from '../core/colors.js';
 
 function drawSchematic(box) {
@@ -56,6 +56,8 @@ async function ensure() {
       mapError: '',
       map: null,
       amap: null,
+      overlays: [],
+      searchState: '',
     };
   }
   state.places = items;
@@ -104,29 +106,59 @@ function drawMap() {
     drawSchematic(box);
     return;
   }
-  box.innerHTML = '';
-  const center = state.places.find((p) => p.lng != null);
-  state.map = new state.amap.Map('amap', {
-    zoom: 12,
-    center: center ? [center.lng, center.lat] : [118.79, 32.05],
-  });
+  if (state.map && state.overlays.length) {
+    state.overlays.forEach((overlay) => overlay.setMap(null));
+    state.overlays = [];
+  }
+  if (!state.map) {
+    const center = state.places.find((p) => p.lng != null);
+    state.map = new state.amap.Map('amap', {
+      zoom: 12,
+      center: center ? [center.lng, center.lat] : [118.79, 32.05],
+    });
+    // 直接在地图上点一下就能标记一个地点
+    state.map.on('click', async (event) => {
+      const point = lngLatToName(event.lnglat);
+      state.places.push({
+        id: `p${Date.now()}`,
+        name: state.query.trim() || `标记点 ${state.places.length + 1}`,
+        tag: '自己标的',
+        lng: point.lng,
+        lat: point.lat,
+      });
+      state.query = '';
+      await persist();
+      toast('已在地图上的这个位置标记一个点');
+      draw();
+    });
+  }
   for (const place of state.places) {
     if (place.lng == null) continue;
     const active = state.order.includes(place.id);
-    new state.amap.Marker({
+    const marker = new state.amap.Marker({
       position: [place.lng, place.lat],
       title: place.name,
       label: { content: place.name, direction: 'top' },
       opacity: active ? 1 : 0.55,
-    }).setMap(state.map);
+    });
+    marker.on('click', () => {
+      state.order = state.order.includes(place.id)
+        ? state.order.filter((x) => x !== place.id)
+        : [...state.order, place.id];
+      draw();
+    });
+    marker.setMap(state.map);
+    state.overlays.push(marker);
   }
   const line = state.order.map((id) => byId(id)).filter((p) => p?.lng != null);
   if (line.length > 1) {
-    new state.amap.Polyline({
+    const polyline = new state.amap.Polyline({
       path: line.map((p) => [p.lng, p.lat]),
       strokeColor: '#0d9488',
       strokeWeight: 4,
-    }).setMap(state.map);
+    });
+    polyline.setMap(state.map);
+    state.overlays.push(polyline);
   }
 }
 
@@ -135,25 +167,43 @@ function draw() {
   clear(view);
   const { legs, travel, depart } = plan();
 
-  const placeRows = state.places.map((place, index) => h('div', { class: 'row' },
-    h('button', {
-      class: `placebtn${state.order.includes(place.id) ? ' picked' : ''}`,
-      onclick: () => {
-        state.order = state.order.includes(place.id)
-          ? state.order.filter((x) => x !== place.id)
-          : [...state.order, place.id];
-        draw();
-      },
-    }, `${place.name}${place.tag ? ` · ${place.tag}` : ''}${place.lng == null ? '（无坐标）' : ''}`),
-    h('button', {
-      class: 'ghost',
-      onclick: async () => {
-        state.places.splice(index, 1);
-        state.order = state.order.filter((x) => x !== place.id);
-        await persist();
-        draw();
-      },
-    }, '×')));
+  const placeRows = state.places.map((place) => {
+    const inRoute = state.order.includes(place.id);
+    return h('div', { class: 'row', style: 'gap:6px;flex-wrap:nowrap' },
+      h('button', {
+        class: `placebtn${inRoute ? ' picked' : ''}`,
+        style: 'padding:6px 9px',
+        title: inRoute ? '点一下移出路线' : '点一下加入路线',
+        onclick: () => {
+          state.order = inRoute
+            ? state.order.filter((x) => x !== place.id)
+            : [...state.order, place.id];
+          draw();
+        },
+      }, inRoute ? '在路线' : '加入'),
+      h('input', {
+        type: 'text',
+        value: place.name,
+        style: 'flex:1;min-width:80px',
+        onchange: async (event) => {
+          place.name = event.target.value.trim() || place.name;
+          await persist();
+          draw();
+        },
+      }),
+      place.lng == null ? h('span', { class: 'chip' }, '无坐标') : null,
+      h('button', {
+        class: 'ghost',
+        title: '删除这个地点',
+        onclick: async () => {
+          state.places = state.places.filter((p) => p.id !== place.id);
+          state.order = state.order.filter((x) => x !== place.id);
+          await persist();
+          draw();
+        },
+      }, '×'),
+    );
+  });
 
   view.append(
     h('section', { class: 'panel' },
@@ -175,15 +225,22 @@ function draw() {
             class: 'primary',
             onclick: async () => {
               if (!state.query.trim()) return;
+              state.searchState = '正在搜索…';
+              draw();
               try {
                 state.results = await searchPlace(state.query.trim());
-                if (!state.results.length) toast('没有搜到结果');
+                state.searchState = state.results.length
+                  ? `找到 ${state.results.length} 个，点「标记」加到地图`
+                  : '没有搜到结果，换个写法试试';
               } catch (err) {
-                toast(err.message);
+                state.results = [];
+                state.searchState = `搜索失败：${err.message}`;
               }
               draw();
             },
           }, '搜索')),
+        h('p', { class: 'small muted', style: 'margin:2px 0 4px' },
+          state.searchState || '搜不到也可以直接在地图上点一下，就在那个位置打标记。'),
         state.results.map((result) => h('div', { class: 'row' },
           h('span', { class: 'grow small' }, `${result.name} · ${result.address}`),
           h('button', {
