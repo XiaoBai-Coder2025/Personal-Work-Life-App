@@ -344,7 +344,7 @@ export async function renderMap(root) {
     try {
       state.amap = await loadAmap(state.settings);
     } catch (err) {
-      state.mapError = `${err.message}（如果 Key 类型不是「Web端(JS API)」也会加载失败）`;
+      state.mapError = `${err.message}。还可以试试：把「数据与设置」里的地图密钥方式改成「明文」再打开本页。`;
     }
     drawMap();
   }

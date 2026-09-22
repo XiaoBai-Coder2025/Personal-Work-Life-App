@@ -78,6 +78,10 @@ async function handleApi(req, res, parts, fetchImpl) {
     }
   }
 
+  if (parts[1] === 'amap-log' && req.method === 'GET') {
+    return send(res, 200, { items: amapLog });
+  }
+
   if (parts[1] === 'import' && parts[2] === 'parse' && req.method === 'POST') {
     try {
       const body = JSON.parse(await readBody(req));
@@ -105,6 +109,13 @@ const AMAP_HOSTS = [
   { prefix: 'v4/map/styles', host: 'https://webapi.amap.com/' },
 ];
 
+const amapLog = [];
+
+function logAmap(entry) {
+  amapLog.push(entry);
+  if (amapLog.length > 30) amapLog.shift();
+}
+
 async function handleAmap(req, res, url, fetchImpl) {
   const settings = await readCollection('settings');
   const jscode = settings?.amapSecCode;
@@ -121,6 +132,13 @@ async function handleAmap(req, res, url, fetchImpl) {
   }
   const upstream = await fetchImpl(target.toString(), init);
   const text = await upstream.text();
+  logAmap({
+    at: new Date().toTimeString().slice(0, 8),
+    method: req.method,
+    path: `/${rest}`,
+    status: upstream.status ?? 200,
+    reply: text.slice(0, 120).replace(/\s+/g, ' '),
+  });
   const type = upstream.headers?.get?.('content-type') ?? 'application/json; charset=utf-8';
   return send(res, upstream.status ?? 200, text, type);
 }

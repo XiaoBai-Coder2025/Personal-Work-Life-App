@@ -35,6 +35,7 @@ async function ensure() {
       appearance: 'auto',
       theme: 'blue',
       weather: 'sunny',
+      amapKeyMode: 'proxy',
       ...all.settings,
     },
     routine: { version: 1, items: all.routine.items ?? [] },
@@ -347,6 +348,17 @@ function draw(root) {
       }, '添加')),
 
     panel('接口 Key',
+      h('div', { class: 'field' }, h('label', {}, '地图密钥方式'),
+        h('div', { class: 'row' }, [['proxy', '代理转发（安全密钥不进页面）'], ['plain', '明文（代理方式报错时改这个）']].map(([value, name]) => h('button', {
+          class: (s.settings.amapKeyMode ?? 'proxy') === value ? 'primary' : '',
+          onclick: async () => {
+            s.settings.amapKeyMode = value;
+            await save('settings', s.settings);
+            s.all.settings = s.settings;
+            toast(`已切换成${value === 'plain' ? '明文' : '代理转发'}方式，回地图工具生效`);
+            redraw();
+          },
+        }, name)))),
       field('高德 JS Key（地图显示、路线与天气）', keyInput(s.settings.amapJsKey, (v) => { s.settings.amapJsKey = v; })),
       field('高德安全密钥（由本机服务代转，不进页面）', keyInput(s.settings.amapSecCode, (v) => { s.settings.amapSecCode = v; })),
       field('AI 服务地址', textInput(s.settings.aiBaseUrl, (v) => { s.settings.aiBaseUrl = v; })),
@@ -366,11 +378,11 @@ function draw(root) {
             s.all.settings = s.settings;
             const jsKey = (s.settings.amapJsKey ?? '').trim();
             const sec = (s.settings.amapSecCode ?? '').trim();
-            if (!jsKey) {
+                if (!jsKey) {
               s.mapCheck = '还没有填高德 JS Key。';
             } else if (!sec) {
               s.mapCheck = '还缺高德安全密钥。JS API 的安全模式必须配它——在高德控制台同一个应用里复制「安全密钥」，填到上面第二格。';
-            } else {
+                } else {
               try {
                 const res = await fetch(`/_AMapService/v3/geocode/geo?address=${encodeURIComponent('南京大学')}&key=${encodeURIComponent(jsKey)}`);
                 const text = await res.text();
@@ -381,7 +393,10 @@ function draw(root) {
                 } catch {
                   /* 保留原文 */
                 }
-                s.mapCheck = `${res.status} · ${detail}`;
+                const nomatch = /PLAT_NOMATCH|10009/.test(detail);
+                s.mapCheck = nomatch
+                  ? `${res.status} · ${detail}\n解读：高德不接受这把 JS 端 Key 直接走 restapi。把上面的「地图密钥方式」改成「明文」，让 JS API 自己带安全密钥请求，通常就正常了。`
+                  : `${res.status} · ${detail}`;
               } catch (err) {
                 s.mapCheck = `请求失败：${err.message}`;
               }
