@@ -113,6 +113,26 @@ async function main() {
     errors.push(`新建任务表单把内容撑出边框：${JSON.stringify(overflow)}`);
   }
 
+  // 点了按钮必须有反应：不能出现"函数找不到、静默什么都不发生"的情况
+  const phasesReaction = await win.webContents.executeJavaScript(`(async () => {
+    const toastEl = document.getElementById('toast');
+    toastEl.hidden = true;
+    const nameInput = document.querySelector('#view input[type="text"]');
+    if (nameInput) {
+      nameInput.value = '期末复习数据结构';
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    const button = [...document.querySelectorAll('#view button')]
+      .find((b) => b.textContent.includes('按任务名分阶段'));
+    if (!button) return { found: false, toast: '' };
+    button.click();
+    await new Promise((r) => setTimeout(r, 1500));
+    return { found: true, toast: toastEl.hidden ? '' : toastEl.textContent };
+  })()`);
+  results.push({ route: 'work-ai-phases', ...phasesReaction });
+  if (!phasesReaction.found) errors.push('找不到「让 AI 按任务名分阶段」按钮');
+  else if (!phasesReaction.toast) errors.push('点了「让 AI 按任务名分阶段」没有任何反应');
+
   await new Promise((resolve) => server.close(resolve));
   console.log(JSON.stringify({ dataDir: DATA_DIR, results, errors }, null, 2));
   app.exit(errors.length ? 1 : 0);

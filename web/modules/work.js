@@ -76,6 +76,40 @@ function gantt() {
   );
 }
 
+// 放在模块作用域：按钮在 listPanel 里，函数如果定义在 draw 内部就点不到了
+async function suggestPhases() {
+  const form = state.newTask;
+  if (!form?.name?.trim()) {
+    toast('先填任务名，AI 才知道该分哪几个阶段');
+    return;
+  }
+  state.phasesBusy = true;
+  draw();
+  try {
+    const reply = await askAI([
+      {
+        role: 'system',
+        content: '你是任务规划助手。根据任务名和期限，给出 3-5 个中文阶段名，按时间先后排列，只输出 JSON 数组，例如 ["收集资料","写初稿","修订","提交"]，不要任何解释。',
+      },
+      {
+        role: 'user',
+        content: `任务名：${form.name}\n最晚完成：${form.due}\n每天投入：${form.hours} 小时`,
+      },
+    ]);
+    const match = reply.match(/\[[\s\S]*\]/);
+    const phases = match
+      ? JSON.parse(match[0]).map((x) => String(x).trim()).filter(Boolean).slice(0, 6)
+      : [];
+    if (!phases.length) throw new Error('AI 没给出可用的阶段名');
+    state.newTask.phases = phases;
+    toast(`AI 分了 ${phases.length} 个阶段：${phases.join(' → ')}`);
+  } catch (err) {
+    toast(`AI 分阶段失败：${err.message}`);
+  }
+  state.phasesBusy = false;
+  draw();
+}
+
 function listPanel() {
   return h('section', { class: 'panel' },
     h('h2', {}, `全部长周期任务（${state.tasks.length}）`),
@@ -423,39 +457,6 @@ function draw() {
   const risky = tasks.filter((t) => t.risk === '高'
     || (t.due && t.due < today)
     || budgetState(t).over.length > 0).length;
-  async function suggestPhases() {
-    const form = state.newTask;
-    if (!form?.name?.trim()) {
-      toast('先填任务名，AI 才知道该分哪几个阶段');
-      return;
-    }
-    state.phasesBusy = true;
-    draw();
-    try {
-      const reply = await askAI([
-        {
-          role: 'system',
-          content: '你是任务规划助手。根据任务名和期限，给出 3-5 个中文阶段名，按时间先后排列，只输出 JSON 数组，例如 ["收集资料","写初稿","修订","提交"]，不要任何解释。',
-        },
-        {
-          role: 'user',
-          content: `任务名：${form.name}\n最晚完成：${form.due}\n每天投入：${form.hours} 小时`,
-        },
-      ]);
-      const match = reply.match(/\[[\s\S]*\]/);
-      const phases = match
-        ? JSON.parse(match[0]).map((x) => String(x).trim()).filter(Boolean).slice(0, 6)
-        : [];
-      if (!phases.length) throw new Error('AI 没给出可用的阶段名');
-      state.newTask.phases = phases;
-      toast(`AI 分了 ${phases.length} 个阶段：${phases.join(' → ')}`);
-    } catch (err) {
-      toast(`AI 分阶段失败：${err.message}`);
-    }
-    state.phasesBusy = false;
-    draw();
-  }
-
   view.append(
     h('div', { class: 'overview' },
       h('div', { class: 'ov' }, h('span', {}, '进行中的长周期任务'), h('b', {}, String(tasks.length))),
