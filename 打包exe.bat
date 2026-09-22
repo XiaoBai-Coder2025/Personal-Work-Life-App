@@ -23,7 +23,7 @@ if defined ZIPDIR set "ZIPDIR=%ZIPDIR:~0,-1%"
 if defined ZIPDIR set "ZIPARG=--electron-zip-dir="%ZIPDIR%""
 
 echo 正在打包（Electron %EVER%），请稍候……
-call npx electron-packager . "个人工作生活" --platform=win32 --arch=x64 --out=dist --overwrite --prune --icon="build\icon.ico" --electron-version=%EVER% %ZIPARG% --ignore="^/(dist|data|backups|test|docs|\.git)(/|$)"
+call npx electron-packager . "个人工作生活" --platform=win32 --arch=x64 --out=dist --overwrite --prune --icon="build\icon.ico" --electron-version=%EVER% %ZIPARG% --ignore="^/(dist[^/]*|data|backups|test|docs|tools|\.git)(/|$)"
 
 if errorlevel 1 (
   echo.
