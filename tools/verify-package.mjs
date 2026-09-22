@@ -4,7 +4,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import * as asar from '@electron/asar';
 
-const ARCHIVE = 'dist/个人工作生活-win32-x64/resources/app.asar';
+const ARCHIVE = process.argv[2] ?? 'dist/个人工作生活-win32-x64/resources/app.asar';
 const CHECKS = [
   ['web\\core\\timetable.js', 'previewTimetable'],
   ['web\\core\\timetable.js', 'weekIndexOf'],
@@ -13,6 +13,8 @@ const CHECKS = [
   ['web\\modules\\settings.js', 'fillPreview'],
   ['web\\core\\amap-config.js', 'securityJsCode'],
   ['web\\modules\\map.js', '安全密钥'],
+  ['web\\modules\\map.js', '直接在地图上点一下'],
+  ['web\\core\\amap.js', 'lngLatToName'],
   ['web\\styles.css', '--shadow-md'],
   ['web\\styles.css', '.preview'],
 ];
