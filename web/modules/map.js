@@ -211,7 +211,11 @@ function draw() {
   view.append(
     h('section', { class: 'panel' },
       h('h2', {}, '地图工具'),
-      h('p', { class: 'muted' }, '左侧是地点与周边，右侧是顺序与行程；地图铺满中间。没有配 Key 时仍然可以估算顺序与出发时间。'),
+      h('div', { class: 'row' },
+        h('span', { class: `chip${state.amap ? ' ok' : state.mapError ? ' warn' : ''}` },
+          state.amap ? '地图已加载' : state.mapError ? '地图未加载' : '正在加载地图…'),
+        h('span', { class: 'muted small' },
+          state.mapError || '左侧是地点与周边，右侧是顺序与行程；在地图上点一下就能标记一个点。')),
     ),
     h('div', { class: 'mapwrap' },
       h('div', { id: 'amap', class: 'mapcanvas' }),
