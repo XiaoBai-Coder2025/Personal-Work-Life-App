@@ -115,10 +115,35 @@ function drawMap() {
     // 建地图前必须把容器清干净，否则之前画的示意图会盖在地图上、也会挡住点击
     box.replaceChildren();
     const center = state.places.find((p) => p.lng != null);
-    state.map = new state.amap.Map('amap', {
-      zoom: 12,
-      center: center ? [center.lng, center.lat] : [118.79, 32.05],
-    });
+    try {
+      state.map = new state.amap.Map('amap', {
+        zoom: 12,
+        center: center ? [center.lng, center.lat] : [118.79, 32.05],
+      });
+    } catch (err) {
+      state.map = null;
+      state.mapError = `地图对象没建起来：${err.message}`;
+      drawSchematic(box);
+      return;
+    }
+    // 初始化时容器可能还没量到尺寸，主动重算一次；窗口变化时也跟着重算
+    setTimeout(() => {
+      try {
+        state.map?.resize();
+      } catch {
+        /* 忽略 */
+      }
+    }, 300);
+    if (!state.resizeBound) {
+      state.resizeBound = true;
+      window.addEventListener('resize', () => {
+        try {
+          state.map?.resize();
+        } catch {
+          /* 忽略 */
+        }
+      });
+    }
     // 直接在地图上点一下就能标记一个地点
     state.map.on('click', async (event) => {
       const point = lngLatToName(event.lnglat);
@@ -163,6 +188,14 @@ function drawMap() {
     polyline.setMap(state.map);
     state.overlays.push(polyline);
   }
+}
+
+function mapDiagnostic() {
+  const box = document.getElementById('amap');
+  if (!box) return '';
+  const canvas = box.querySelector('canvas');
+  const size = `${box.clientWidth}×${box.clientHeight}`;
+  return `画布 ${canvas ? '有' : '无'} · 容器 ${size}`;
 }
 
 function draw() {
@@ -214,6 +247,20 @@ function draw() {
       h('div', { class: 'row' },
         h('span', { class: `chip${state.amap ? ' ok' : state.mapError ? ' warn' : ''}` },
           state.amap ? '地图已加载' : state.mapError ? '地图未加载' : '正在加载地图…'),
+        state.amap ? h('span', { class: 'chip' }, mapDiagnostic()) : null,
+        state.amap ? h('button', {
+          class: 'ghost',
+          onclick: () => {
+            try {
+              state.map?.destroy();
+            } catch {
+              /* 忽略 */
+            }
+            state.map = null;
+            state.overlays = [];
+            draw();
+          },
+        }, '重新加载地图') : null,
         h('span', { class: 'muted small' },
           state.mapError || '左侧是地点与周边，右侧是顺序与行程；在地图上点一下就能标记一个点。')),
     ),
