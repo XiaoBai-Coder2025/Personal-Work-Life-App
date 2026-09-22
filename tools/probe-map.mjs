@@ -5,10 +5,12 @@ import fs from 'node:fs';
 import { app, BrowserWindow } from 'electron';
 
 const PORT = 4395;
+const appDataDir = path.join(process.env.APPDATA ?? '', '个人工作生活', 'data');
+const legacyDir = 'dist/个人工作生活-win32-x64/data';
 const DATA_DIR = process.env.PERSONAL_APP_DATA_DIR
-  ?? (fs.existsSync('dist/个人工作生活-win32-x64/data/settings.json')
-    ? 'dist/个人工作生活-win32-x64/data'
-    : 'data');
+  ?? (fs.existsSync(path.join(appDataDir, 'settings.json')) ? appDataDir
+    : fs.existsSync(path.join(legacyDir, 'settings.json')) ? legacyDir
+      : 'data');
 process.env.PERSONAL_APP_DATA_DIR = DATA_DIR;
 process.env.PERSONAL_APP_PORT = String(PORT);
 

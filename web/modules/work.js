@@ -2,6 +2,7 @@ import { h, clear, toast } from '../core/ui.js';
 import { load, save } from '../core/api.js';
 import { addDays, parseKey, todayKey, weekStart, toMinutes, toTime } from '../core/dates.js';
 import { budgetState, doneRatio, leftMinutes, replan, DEFAULT_PER_DAY } from '../core/taskplan.js';
+import { askAI } from '../core/ai.js';
 
 const TEMPLATES = [
   { id: 'consult', name: '咨询项目', phases: ['收材料', '写初稿', '定稿', '交付'] },
@@ -15,7 +16,7 @@ let state = null;
 
 async function ensure() {
   const [tasks, plans] = await Promise.all([load('tasks'), load('plans')]);
-  if (!state) state = { picked: null, newTask: null, draft: null, newStage: '' };
+  if (!state) state = { picked: null, newTask: null, draft: null, newStage: '', phasesBusy: false };
   state.tasks = tasks.items ?? [];
   state.plans = plans.items ?? [];
   if (!state.tasks.some((t) => t.id === state.picked)) {
@@ -117,10 +118,11 @@ function listPanel() {
             value: state.newTask.hours,
             oninput: (e) => { state.newTask.hours = Number(e.target.value) || 1; },
           })),
-          h('div', { class: 'field' }, h('label', {}, '阶段模板'),
+          h('div', { class: 'field' }, h('label', {}, '阶段模板（可选，AI 分阶段会覆盖它）'),
             h('select', {
               onchange: (e) => {
                 state.newTask.tpl = e.target.value;
+                state.newTask.phases = (TEMPLATES.find((t) => t.id === e.target.value) ?? TEMPLATES[0]).phases;
                 draw();
               },
             }, TEMPLATES.map((t) => h('option', {
@@ -128,7 +130,15 @@ function listPanel() {
               selected: t.id === state.newTask.tpl,
             }, t.name))))),
         h('p', { class: 'small muted', style: 'margin:0' },
-          `阶段：${(TEMPLATES.find((t) => t.id === state.newTask.tpl) ?? TEMPLATES[0]).phases.join(' → ')}`),
+          `阶段：${(state.newTask.phases
+            ?? (TEMPLATES.find((t) => t.id === state.newTask.tpl) ?? TEMPLATES[0]).phases).join(' → ')}`),
+        h('div', { class: 'row' },
+          h('button', {
+            class: 'primary',
+            disabled: state.phasesBusy,
+            onclick: () => suggestPhases(),
+          }, state.phasesBusy ? '正在分阶段…' : '让 AI 按任务名分阶段'),
+          h('span', { class: 'small muted' }, '比如填「期末复习数据结构」，它会给出复习→刷题→真题→复盘这类阶段')),
         h('div', { class: 'row' },
           h('button', {
             class: 'primary',
@@ -136,6 +146,7 @@ function listPanel() {
               const form = state.newTask;
               if (!form.name.trim()) return toast('先填任务名');
               const tpl = TEMPLATES.find((t) => t.id === form.tpl) ?? TEMPLATES[0];
+              const phases = (form.phases?.length ? form.phases : tpl.phases).slice(0, 6);
               const task = {
                 id: `k${Date.now()}`,
                 name: form.name.trim(),
@@ -143,7 +154,7 @@ function listPanel() {
                 to: form.due,
                 due: form.due,
                 perDay: Math.round(form.hours * 60),
-                phases: tpl.phases,
+                phases,
                 phase: 0,
                 risk: '中',
                 dep: '',
@@ -412,6 +423,39 @@ function draw() {
   const risky = tasks.filter((t) => t.risk === '高'
     || (t.due && t.due < today)
     || budgetState(t).over.length > 0).length;
+  async function suggestPhases() {
+    const form = state.newTask;
+    if (!form?.name?.trim()) {
+      toast('先填任务名，AI 才知道该分哪几个阶段');
+      return;
+    }
+    state.phasesBusy = true;
+    draw();
+    try {
+      const reply = await askAI([
+        {
+          role: 'system',
+          content: '你是任务规划助手。根据任务名和期限，给出 3-5 个中文阶段名，按时间先后排列，只输出 JSON 数组，例如 ["收集资料","写初稿","修订","提交"]，不要任何解释。',
+        },
+        {
+          role: 'user',
+          content: `任务名：${form.name}\n最晚完成：${form.due}\n每天投入：${form.hours} 小时`,
+        },
+      ]);
+      const match = reply.match(/\[[\s\S]*\]/);
+      const phases = match
+        ? JSON.parse(match[0]).map((x) => String(x).trim()).filter(Boolean).slice(0, 6)
+        : [];
+      if (!phases.length) throw new Error('AI 没给出可用的阶段名');
+      state.newTask.phases = phases;
+      toast(`AI 分了 ${phases.length} 个阶段：${phases.join(' → ')}`);
+    } catch (err) {
+      toast(`AI 分阶段失败：${err.message}`);
+    }
+    state.phasesBusy = false;
+    draw();
+  }
+
   view.append(
     h('div', { class: 'overview' },
       h('div', { class: 'ov' }, h('span', {}, '进行中的长周期任务'), h('b', {}, String(tasks.length))),
