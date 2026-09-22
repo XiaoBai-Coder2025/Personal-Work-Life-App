@@ -119,11 +119,16 @@ function listPanel() {
           })),
           h('div', { class: 'field' }, h('label', {}, '阶段模板'),
             h('select', {
-              onchange: (e) => { state.newTask.tpl = e.target.value; },
+              onchange: (e) => {
+                state.newTask.tpl = e.target.value;
+                draw();
+              },
             }, TEMPLATES.map((t) => h('option', {
               value: t.id,
               selected: t.id === state.newTask.tpl,
-            }, `${t.name}：${t.phases.join(' → ')}`))))),
+            }, t.name))))),
+        h('p', { class: 'small muted', style: 'margin:0' },
+          `阶段：${(TEMPLATES.find((t) => t.id === state.newTask.tpl) ?? TEMPLATES[0]).phases.join(' → ')}`),
         h('div', { class: 'row' },
           h('button', {
             class: 'primary',

@@ -110,7 +110,8 @@ body {
 .ov span { display: block; font-size: 12px; color: var(--muted); }
 .ov b { font-size: 20px; font-weight: 500; line-height: 1.4; }
 .ov b.warn { color: var(--danger); }
-.splits { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.splits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.splits > *, .cols > *, .newbox > *, .panel > * { min-width: 0; }
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
 .grow { flex: 1; min-width: 0; }
@@ -129,12 +130,15 @@ body {
 
 .field { display: grid; gap: 4px; margin-bottom: 12px; max-width: 520px; }
 .field label { font-size: 12px; color: var(--muted); }
+.field input, .field select, .field textarea { width: 100%; min-width: 0; }
 
 input, select {
   padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px;
   font: inherit; background: var(--surface); color: var(--text);
   transition: border-color .16s ease, box-shadow .16s ease;
+  max-width: 100%;
 }
+select { width: 100%; min-width: 0; }
 textarea {
   padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; font: inherit;
   background: var(--surface-2); color: var(--text); box-shadow: var(--shadow-sm);
@@ -300,6 +304,7 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .float.right { right: 12px; width: 306px; }
 .float h3 { margin: 10px 0 4px; font-size: 13px; }
 .float h3:first-child { margin-top: 0; }
+.float .row > input, .float .row > select { flex: 1 1 60px; min-width: 0; }
 .float h3::before {
   content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
   background: var(--accent); margin-right: 7px; vertical-align: middle;

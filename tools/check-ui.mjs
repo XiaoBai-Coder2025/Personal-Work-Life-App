@@ -63,7 +63,7 @@ async function main() {
   await new Promise((resolve) => setTimeout(resolve, 1500));
   results.push({ route: 'sample-data', filled });
 
-  for (const route of ['calendar', 'today', 'work', 'home']) {
+  for (const route of ['calendar', 'today', 'work', 'home', 'map', 'ai', 'settings']) {
     await win.loadURL(`http://127.0.0.1:${PORT}/#/${route}`);
     await new Promise((resolve) => setTimeout(resolve, 700));
     const info = await win.webContents.executeJavaScript(`(() => {
@@ -75,9 +75,42 @@ async function main() {
         textLength: (view.innerText ?? '').length,
         bars: bars.length,
         barColors: colors.size,
+        wide: [...view.querySelectorAll('*')]
+          .filter((el) => {
+            const excess = el.scrollWidth - el.clientWidth;
+            if (excess <= 2) return false;
+            const overflowX = getComputedStyle(el).overflowX;
+            // 自身可横向滚动的容器（比如浮层）会被滚动条占掉十几像素，那不算撑出边框
+            return !((overflowX === 'auto' || overflowX === 'scroll') && excess <= 20);
+          })
+          .map((el) => `${el.tagName}.${String(el.className || '').split(' ')[0]} ${el.scrollWidth}>${el.clientWidth}`)
+          .slice(0, 4),
       };
     })()`);
     results.push({ route: `filled-${route}`, ...info });
+    if (info.wide.length) errors.push(`${route} 模块有元素撑出边框：${info.wide.join(', ')}`);
+  }
+
+  // 点开「新建任务」表单，检查有没有把列撑出边框
+  await win.loadURL(`http://127.0.0.1:${PORT}/#/work`);
+  await new Promise((resolve) => setTimeout(resolve, 700));
+  const opened = await win.webContents.executeJavaScript(`(() => {
+    const button = [...document.querySelectorAll('#view button')].find((b) => b.textContent.includes('新建任务'));
+    if (button) button.click();
+    return !!button;
+  })()`);
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  const overflow = await win.webContents.executeJavaScript(`(() => {
+    const view = document.getElementById('view');
+    const wide = [...view.querySelectorAll('*')]
+      .filter((el) => el.scrollWidth > el.clientWidth + 2)
+      .map((el) => el.tagName + '.' + String(el.className || '').split(' ')[0] + ' ' + el.scrollWidth + '>' + el.clientWidth)
+      .slice(0, 8);
+    return { viewOverflow: view.scrollWidth - view.clientWidth, wide };
+  })()`);
+  results.push({ route: 'work-newtask', opened, ...overflow });
+  if (overflow.viewOverflow > 2 || overflow.wide.length) {
+    errors.push(`新建任务表单把内容撑出边框：${JSON.stringify(overflow)}`);
   }
 
   await new Promise((resolve) => server.close(resolve));
