@@ -17,7 +17,11 @@ let state = null;
 
 async function ensure() {
   const [tasks, plans] = await Promise.all([load('tasks'), load('plans')]);
-  if (!state) state = { picked: null, newTask: null, draft: null, newStage: '', phasesBusy: false };
+  if (!state) {
+    state = {
+      picked: null, newTask: null, draft: null, newStage: '', phasesBusy: false, renamingPhase: null, renameText: '',
+    };
+  }
   state.tasks = tasks.items ?? [];
   state.plans = plans.items ?? [];
   if (!state.tasks.some((t) => t.id === state.picked)) {
@@ -333,14 +337,47 @@ function detailPanel() {
     const minutes = slots.reduce((sum, x) => sum + Math.max(0, toMinutes(x.slot.to) - toMinutes(x.slot.from)), 0);
     return h('div', { class: `phase${index === task.phase ? ' now' : ''}` },
       h('div', { class: 'row' },
-        h('button', {
-          class: `stage${index === task.phase ? ' on' : ''}`,
-          onclick: async () => {
-            task.phase = index;
-            await writeTasks();
-            draw();
-          },
-        }, name),
+        state.renamingPhase === index
+          ? h('input', {
+            type: 'text',
+            value: state.renameText,
+            style: 'max-width:150px',
+            oninput: (event) => { state.renameText = event.target.value; },
+            onkeydown: async (event) => {
+              if (event.key !== 'Enter') return;
+              const text = state.renameText.trim();
+              if (text) task.phases[index] = text;
+              state.renamingPhase = null;
+              await writeTasks();
+              draw();
+            },
+            onblur: async () => {
+              const text = state.renameText.trim();
+              if (text) task.phases[index] = text;
+              state.renamingPhase = null;
+              await writeTasks();
+              draw();
+            },
+          })
+          : h('button', {
+            class: `stage${index === task.phase ? ' on' : ''}`,
+            onclick: async () => {
+              task.phase = index;
+              await writeTasks();
+              draw();
+            },
+          }, name),
+        state.renamingPhase === index
+          ? null
+          : h('button', {
+            class: 'ghost',
+            title: '改阶段名',
+            onclick: () => {
+              state.renamingPhase = index;
+              state.renameText = name;
+              draw();
+            },
+          }, '改名'),
         h('span', { class: 'chip' }, `${slots.length} 段`),
         h('span', { class: 'chip' }, `${(minutes / 60).toFixed(1)} 小时`),
         h('button', {

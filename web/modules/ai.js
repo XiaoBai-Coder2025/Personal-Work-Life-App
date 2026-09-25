@@ -4,6 +4,7 @@ import { todayKey, addDays } from '../core/dates.js';
 import { buildContext } from '../core/context.js';
 import { askAI, parseFile, fileToBase64 } from '../core/ai.js';
 import { replan } from '../core/taskplan.js';
+import { WEEK_LABEL } from '../core/timetable.js';
 
 const DATA_KEYS = ['profile', 'places', 'routine', 'events', 'plans', 'tasks', 'notes', 'pending', 'chats', 'settings'];
 
@@ -14,7 +15,14 @@ async function ensure() {
   for (const key of DATA_KEYS) data[key] = await load(key);
   if (!state) {
     state = {
-      picked: null, input: '', busy: false, read: {}, wizard: null, imported: null,
+      picked: null,
+      input: '',
+      busy: false,
+      read: {},
+      wizard: null,
+      imported: null,
+      imageBusy: false,
+      imageCourses: null,
     };
   }
   state.data = data;
@@ -166,6 +174,103 @@ function wizardPanel() {
       h('button', { onclick: () => { state.wizard = null; draw(); } }, '取消')));
 }
 
+const TIMETABLE_PROMPT = '你是课表识别助手。识别图片里的课程表，只输出 JSON 数组，每项格式：'
+  + '{"title":"课程名","weekdays":[1,3],"from":"08:00","to":"09:40","weeks":"all","place":"教室"}。'
+  + 'weekdays 用 1-7 表示周一到周日；weeks 填 all、odd（单周）或 even（双周）；识别不到的信息留空；只输出 JSON。';
+
+function toRoutineCourse(item, index) {
+  const weekdays = (Array.isArray(item.weekdays) ? item.weekdays : [])
+    .map(Number)
+    .filter((n) => n >= 1 && n <= 7);
+  return {
+    id: `img${Date.now()}${index}`,
+    title: String(item.title ?? '').trim(),
+    weekdays,
+    from: String(item.from ?? '08:00'),
+    to: String(item.to ?? '09:40'),
+    weeks: ['odd', 'even'].includes(item.weeks) ? item.weeks : 'all',
+    place: String(item.place ?? '').trim(),
+    startDate: '',
+    endDate: '',
+  };
+}
+
+function imageImportPanel() {
+  const picker = h('input', {
+    type: 'file',
+    accept: 'image/*',
+    onchange: async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      state.imageBusy = true;
+      state.imageCourses = null;
+      draw();
+      try {
+        const base64 = await fileToBase64(file);
+        const reply = await askAI([
+          { role: 'system', content: TIMETABLE_PROMPT },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: '这是课表图片，请按格式输出 JSON。' },
+              { type: 'image_url', image_url: { url: `data:${file.type || 'image/png'};base64,${base64}` } },
+            ],
+          },
+        ]);
+        const match = reply.match(/\[[\s\S]*\]/);
+        const list = match ? JSON.parse(match[0]) : [];
+        const courses = list.map(toRoutineCourse).filter((course) => course.title && course.weekdays.length);
+        if (!courses.length) throw new Error('没识别出带星期的课程');
+        state.imageCourses = courses;
+        toast(`识别到 ${courses.length} 门课，确认后再导入`);
+      } catch (err) {
+        toast(`识别失败：${err.message}`);
+      }
+      state.imageBusy = false;
+      draw();
+    },
+  });
+  return h('section', { class: 'panel' },
+    h('h2', {}, '从图片导入课表'),
+    h('p', { class: 'muted' }, '截图或拍照的课表都可以试，需要你的 AI 服务支持看图（多数多模态模型支持）。'),
+    h('div', { class: 'row' }, picker),
+    state.imageBusy ? h('p', { class: 'muted small' }, '正在识别图片…') : null,
+    state.imageCourses
+      ? h('div', {},
+        h('p', { class: 'small muted' }, `识别到 ${state.imageCourses.length} 门课，确认无误再导入：`),
+        h('div', { class: 'scrollbox' },
+          ...state.imageCourses.map((course, index) => h('div', { class: 'slotline' },
+            h('input', {
+              type: 'text',
+              value: course.title,
+              style: 'flex:1;min-width:80px',
+              onchange: (event) => { state.imageCourses[index].title = event.target.value; },
+            }),
+            h('span', { class: 'small muted' },
+              `${course.weekdays.map((w) => `周${'一二三四五六日'[w - 1]}`).join(' ')} ${course.from}-${course.to} · ${WEEK_LABEL[course.weeks]}`)))),
+        h('div', { class: 'row' },
+          h('button', {
+            class: 'primary',
+            onclick: async () => {
+              const routine = await load('routine');
+              const items = routine.items ?? [];
+              for (const course of state.imageCourses) items.push(course);
+              await save('routine', { version: 1, items });
+              toast(`已导入 ${state.imageCourses.length} 门课，可在「数据与设置 → 固定课表」查看`);
+              state.imageCourses = null;
+              draw();
+            },
+          }, '导入到固定课表'),
+          h('button', {
+            onclick: () => {
+              state.imageCourses = null;
+              draw();
+            },
+          }, '取消')))
+      : null,
+  );
+}
+
 function importPanel() {
   const picker = h('input', {
     type: 'file',
@@ -298,6 +403,7 @@ function draw() {
               onclick: () => send(state.input),
             }, '发送'))),
         wizardPanel(),
+        imageImportPanel(),
         importPanel()),
       readablePanel()),
   );
