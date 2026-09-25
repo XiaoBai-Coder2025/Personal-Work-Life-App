@@ -237,28 +237,41 @@ function imageImportPanel() {
     state.imageBusy ? h('p', { class: 'muted small' }, '正在识别图片…') : null,
     state.imageCourses
       ? h('div', {},
-        h('p', { class: 'small muted' }, `识别到 ${state.imageCourses.length} 门课，确认无误再导入：`),
-        h('div', { class: 'scrollbox' },
-          ...state.imageCourses.map((course, index) => h('div', { class: 'slotline' },
-            h('input', {
-              type: 'text',
-              value: course.title,
-              style: 'flex:1;min-width:80px',
-              onchange: (event) => { state.imageCourses[index].title = event.target.value; },
-            }),
-            h('span', { class: 'small muted' },
-              `${course.weekdays.map((w) => `周${'一二三四五六日'[w - 1]}`).join(' ')} ${course.from}-${course.to} · ${WEEK_LABEL[course.weeks]}`)))),
+        h('p', { class: 'small muted' }, `${state.imageCourses.length} 门课。名字、星期、时间、单双周、教室都能直接改；不要的删掉，漏了的补上。`),
+        h('div', { class: 'scrollbox' }, ...state.imageCourses.map(courseRow)),
         h('div', { class: 'row' },
+          h('button', {
+            onclick: () => {
+              state.imageCourses.push({
+                id: `img${Date.now()}`,
+                title: '',
+                weekdays: [],
+                from: '08:00',
+                to: '09:40',
+                weeks: 'all',
+                place: '',
+                startDate: '',
+                endDate: '',
+              });
+              draw();
+            },
+          }, '＋ 加一门课'),
           h('button', {
             class: 'primary',
             onclick: async () => {
+              const ready = state.imageCourses.filter((course) => course.title.trim() && course.weekdays.length);
+              const skipped = state.imageCourses.length - ready.length;
+              if (!ready.length) return toast('还没有填完整的课（要有课程名和至少一个星期）');
               const routine = await load('routine');
               const items = routine.items ?? [];
-              for (const course of state.imageCourses) items.push(course);
+              for (const course of ready) items.push(course);
               await save('routine', { version: 1, items });
-              toast(`已导入 ${state.imageCourses.length} 门课，可在「数据与设置 → 固定课表」查看`);
+              toast(skipped
+                ? `已导入 ${ready.length} 门课，${skipped} 门没填完整被跳过`
+                : `已导入 ${ready.length} 门课，可在「数据与设置 → 固定课表」查看`);
               state.imageCourses = null;
               draw();
+              return undefined;
             },
           }, '导入到固定课表'),
           h('button', {
@@ -268,6 +281,67 @@ function imageImportPanel() {
             },
           }, '取消')))
       : null,
+  );
+}
+
+// 识别完的课照样可以精细调整：改名、改星期、改时间、换单双周、填教室、删除
+function courseRow(course, index) {
+  const patch = (fields) => Object.assign(state.imageCourses[index], fields);
+  return h('div', { class: 'coursebox' },
+    h('div', { class: 'row', style: 'gap:6px' },
+      h('input', {
+        type: 'text',
+        value: course.title,
+        placeholder: '课程名',
+        style: 'flex:1;min-width:90px',
+        oninput: (event) => patch({ title: event.target.value }),
+      }),
+      h('select', {
+        style: 'max-width:92px',
+        onchange: (event) => patch({ weeks: event.target.value }),
+      }, Object.entries(WEEK_LABEL).map(([value, name]) => h('option', {
+        value,
+        selected: course.weeks === value,
+      }, name))),
+      h('button', {
+        class: 'ghost',
+        title: '删掉这门课',
+        onclick: () => {
+          state.imageCourses.splice(index, 1);
+          draw();
+        },
+      }, '×')),
+    h('div', { class: 'row', style: 'gap:3px' },
+      ...['一', '二', '三', '四', '五', '六', '日'].map((label, i) => h('button', {
+        class: course.weekdays.includes(i + 1) ? 'primary' : '',
+        style: 'padding:3px 8px;font-size:12px',
+        onclick: () => {
+          const at = course.weekdays.indexOf(i + 1);
+          if (at >= 0) course.weekdays.splice(at, 1);
+          else course.weekdays.push(i + 1);
+          course.weekdays.sort((a, b) => a - b);
+          draw();
+        },
+      }, label))),
+    h('div', { class: 'row', style: 'gap:6px' },
+      h('input', {
+        type: 'time',
+        value: course.from,
+        onchange: (event) => patch({ from: event.target.value }),
+      }),
+      h('span', { class: 'muted small' }, '到'),
+      h('input', {
+        type: 'time',
+        value: course.to,
+        onchange: (event) => patch({ to: event.target.value }),
+      }),
+      h('input', {
+        type: 'text',
+        value: course.place,
+        placeholder: '教室',
+        style: 'flex:1;min-width:70px',
+        oninput: (event) => patch({ place: event.target.value }),
+      })),
   );
 }
 
