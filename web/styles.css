@@ -333,3 +333,6 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 }
 
 .aibox { border: 1px dashed var(--accent); border-radius: 10px; padding: 10px 12px; margin-top: 8px; background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
+
+.clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.scrollbox { max-height: 150px; overflow-y: auto; border-top: 1px solid var(--line); margin-top: 4px; }

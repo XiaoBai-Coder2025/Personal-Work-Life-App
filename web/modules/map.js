@@ -1,6 +1,6 @@
 import { h, clear, toast } from '../core/ui.js';
 import { load, save } from '../core/api.js';
-import { bestOrder, departPlan, haversineKm, estimateMinutes } from '../core/route.js';
+import { bestOrder, departPlan, haversineKm, estimateMinutes, totalCost } from '../core/route.js';
 import { loadAmap, searchNearby, geocode, lngLatToName, planLeg } from '../core/amap.js';
 import { colorFor } from '../core/colors.js';
 
@@ -61,6 +61,7 @@ async function ensure() {
       city: '',
       routeInfo: {},
       routeKey: '',
+      optimizing: false,
     };
   }
   state.places = items;
@@ -96,6 +97,48 @@ function plan() {
     chosen: state.chosen || undefined,
   });
   return { legs, travel, depart };
+}
+
+// 优化顺序用真实耗时：先补齐各点对的路线，再在这些数字上找最短
+async function optimizeOrder() {
+  const ids = state.order.map((id) => byId(id)).filter(Boolean);
+  if (ids.length < 3) {
+    toast('至少三个点才能优化顺序');
+    return;
+  }
+  if (ids.some((place) => place.lng == null)) {
+    toast('有地点还没有坐标：先搜索标记，或者直接在地图上点一下');
+    return;
+  }
+  state.optimizing = true;
+  draw();
+  for (const from of ids) {
+    for (const to of ids) {
+      if (from.id === to.id) continue;
+      const key = `${from.id}>${to.id}`;
+      if (state.routeInfo[key] && !state.routeInfo[key].error) continue;
+      try {
+        // 同一段用当前选的交通方式
+        state.routeInfo[key] = await planLeg(from, to, state.legMode[key] ?? 'metro', state.city.trim());
+      } catch (err) {
+        state.routeInfo[key] = { error: err.message };
+      }
+    }
+  }
+  const cost = (a, b) => {
+    const info = state.routeInfo[`${a}>${b}`];
+    if (info && !info.error) return info.minutes;
+    return legMinutes(a, b);
+  };
+  const before = totalCost(state.order, cost);
+  const best = bestOrder(ids, cost);
+  const improved = best.total < before;
+  if (improved) state.order = best.order;
+  state.optimizing = false;
+  toast(improved
+    ? `优化完成：${before} 分钟 → ${best.total} 分钟，少走 ${before - best.total} 分钟`
+    : `当前顺序已经是最短的（共 ${before} 分钟）`);
+  draw();
 }
 
 async function persist() {
@@ -434,17 +477,9 @@ function draw() {
         h('div', { class: 'row' },
           h('button', {
             class: 'primary',
-            onclick: () => {
-              if (state.order.length < 3) return toast('至少三个点才能优化顺序');
-              const before = plan().travel;
-              const ids = state.order.map((id) => byId(id));
-              const result = bestOrder(ids, (a, b) => legMinutes(a.id, b.id));
-              state.order = result.order;
-              const after = plan().travel;
-              toast(`优化完成：${before} 分钟 → ${after} 分钟，少走 ${before - after} 分钟`);
-              draw();
-            },
-          }, '优化顺序'),
+            disabled: state.optimizing,
+            onclick: () => optimizeOrder(),
+          }, state.optimizing ? '正在计算各点之间的耗时…' : '优化顺序'),
           h('button', {
             onclick: () => {
               state.holiday = !state.holiday;

@@ -78,12 +78,20 @@ function gantt() {
 }
 
 // 放在模块作用域：按钮在 listPanel 里，函数如果定义在 draw 内部就点不到了
-async function suggestPlan() {
+async function suggestPlan(extra = '') {
   const form = state.newTask;
   if (!form?.name?.trim()) {
     toast('先填任务名，AI 才知道该分哪几个阶段');
     return;
   }
+  form.aiMessages = form.aiMessages ?? [];
+  if (!form.aiMessages.length) {
+    form.aiMessages.push({
+      role: 'user',
+      content: `任务名：${form.name}\n最晚完成：${form.due}\n每天投入：${form.hours} 小时\n今天：${todayKey()}`,
+    });
+  }
+  if (extra) form.aiMessages.push({ role: 'user', content: `修改意见：${extra}` });
   state.phasesBusy = true;
   draw();
   try {
@@ -97,10 +105,7 @@ async function suggestPlan() {
           + '要求：阶段 3-5 个，按先后顺序；schedule 按工作日铺开（跳过周末），每段时长等于每天投入，'
           + '从明天开始排到最晚完成日，最后一段落在交付日之前；focus 要具体，不要写"继续推进"这种空话。',
       },
-      {
-        role: 'user',
-        content: `任务名：${form.name}\n最晚完成：${form.due}\n每天投入：${form.hours} 小时\n今天：${todayKey()}`,
-      },
+      ...form.aiMessages,
     ]);
     const match = reply.match(/\{[\s\S]*\}/);
     if (!match) throw new Error('AI 没给出可解析的规划');
@@ -121,6 +126,7 @@ async function suggestPlan() {
       .slice(0, 20);
     state.newTask.phases = phases;
     state.newTask.ai = { plan: String(data.plan ?? ''), schedule };
+    form.aiMessages.push({ role: 'assistant', content: reply });
     toast(schedule.length
       ? `AI 给了 ${phases.length} 个阶段和 ${schedule.length} 天安排，看一下再决定`
       : `AI 给了 ${phases.length} 个阶段（没给逐日安排）`);
@@ -197,16 +203,28 @@ function listPanel() {
         state.newTask.ai
           ? h('div', { class: 'aibox' },
             state.newTask.ai.plan
-              ? h('p', { class: 'small muted', style: 'margin:0 0 6px' }, `思路：${state.newTask.ai.plan}`)
+              ? h('div', { style: 'margin:0 0 6px' },
+                h('p', {
+                  class: `small muted${state.newTask.planOpen ? '' : ' clamp2'}`,
+                  style: 'margin:0',
+                }, `思路：${state.newTask.ai.plan}`),
+                h('button', {
+                  class: 'ghost small',
+                  onclick: () => {
+                    state.newTask.planOpen = !state.newTask.planOpen;
+                    draw();
+                  },
+                }, state.newTask.planOpen ? '收起思路' : '展开思路'))
               : null,
             state.newTask.ai.schedule.length
               ? [
                 h('p', { class: 'small muted', style: 'margin:0 0 4px' },
                   `逐日安排 ${state.newTask.ai.schedule.length} 段：`),
-                ...state.newTask.ai.schedule.slice(0, 12).map((slot) => h('div', { class: 'slotline' },
+                h('div', { class: 'scrollbox' },
+                  ...state.newTask.ai.schedule.map((slot) => h('div', { class: 'slotline' },
                   h('span', { class: 'time' }, `${slot.d} ${slot.w}`),
                   h('span', { class: 'grow small' }, `${state.newTask.phases[slot.ph] ?? ''} · ${slot.focus || '（未写内容）'}`),
-                  h('span', { class: 'chip' }, `${slot.from}-${slot.to}`))),
+                  h('span', { class: 'chip' }, `${slot.from}-${slot.to}`)))),
                 h('div', { class: 'row' },
                   h('span', { class: 'small muted' }, '同意这份安排就点右边；不满意可以让 AI 重新生成'),
                   h('button', {
@@ -218,6 +236,27 @@ function listPanel() {
                       draw();
                     },
                   }, state.newTask.agreed ? '已采用' : '同意这份安排')),
+                h('div', { class: 'row', style: 'margin-top:6px' },
+                  h('input', {
+                    type: 'text',
+                    placeholder: '想改哪里？比如：第二周太赶，往后挪两天',
+                    value: state.newTask.aiReply ?? '',
+                    oninput: (e) => { state.newTask.aiReply = e.target.value; },
+                    onkeydown: (e) => {
+                      if (e.key === 'Enter' && state.newTask.aiReply?.trim()) {
+                        suggestPlan(state.newTask.aiReply.trim());
+                      }
+                    },
+                  }),
+                  h('button', {
+                    disabled: state.phasesBusy,
+                    onclick: () => {
+                      const text = (state.newTask.aiReply ?? '').trim();
+                      if (!text) return toast('先写下想改的地方');
+                      state.newTask.aiReply = '';
+                      return suggestPlan(text);
+                    },
+                  }, '让它改')),
               ]
               : h('p', { class: 'small muted' }, 'AI 只给了阶段名，逐日安排会在建任务时按工作日自动铺开。'),
           )
