@@ -11,6 +11,7 @@ const TEMPLATES = [
   { id: 'exam', name: '备考', phases: ['词汇', '真题', '听力', '模考'] },
 ];
 const PHASE_COLORS = ['fixed', 'task', 'travel', 'due', 'break'];
+const WEEKDAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
 let state = null;
 
@@ -77,7 +78,7 @@ function gantt() {
 }
 
 // 放在模块作用域：按钮在 listPanel 里，函数如果定义在 draw 内部就点不到了
-async function suggestPhases() {
+async function suggestPlan() {
   const form = state.newTask;
   if (!form?.name?.trim()) {
     toast('先填任务名，AI 才知道该分哪几个阶段');
@@ -89,22 +90,42 @@ async function suggestPhases() {
     const reply = await askAI([
       {
         role: 'system',
-        content: '你是任务规划助手。根据任务名和期限，给出 3-5 个中文阶段名，按时间先后排列，只输出 JSON 数组，例如 ["收集资料","写初稿","修订","提交"]，不要任何解释。',
+        content: '你是任务规划助手。根据任务名、期限和每天可投入的时间，输出一份规划。'
+          + '只输出 JSON 对象，不要解释，格式：'
+          + '{"phases":["阶段名",...],"plan":"两三句话说明总体思路和节奏",'
+          + '"schedule":[{"date":"YYYY-MM-DD","from":"HH:MM","to":"HH:MM","phase":"属于哪个阶段","focus":"这一次具体做什么"}]}。'
+          + '要求：阶段 3-5 个，按先后顺序；schedule 按工作日铺开（跳过周末），每段时长等于每天投入，'
+          + '从明天开始排到最晚完成日，最后一段落在交付日之前；focus 要具体，不要写"继续推进"这种空话。',
       },
       {
         role: 'user',
-        content: `任务名：${form.name}\n最晚完成：${form.due}\n每天投入：${form.hours} 小时`,
+        content: `任务名：${form.name}\n最晚完成：${form.due}\n每天投入：${form.hours} 小时\n今天：${todayKey()}`,
       },
     ]);
-    const match = reply.match(/\[[\s\S]*\]/);
-    const phases = match
-      ? JSON.parse(match[0]).map((x) => String(x).trim()).filter(Boolean).slice(0, 6)
-      : [];
-    if (!phases.length) throw new Error('AI 没给出可用的阶段名');
+    const match = reply.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('AI 没给出可解析的规划');
+    const data = JSON.parse(match[0]);
+    const phases = (data.phases ?? []).map((x) => String(x).trim()).filter(Boolean).slice(0, 6);
+    if (!phases.length) throw new Error('AI 没给出阶段名');
+    const schedule = (data.schedule ?? [])
+      .filter((x) => x?.date && x?.from && x?.to)
+      .map((x) => ({
+        d: String(x.date).slice(5),
+        w: WEEKDAY_NAMES[parseKey(String(x.date)).getDay()],
+        from: String(x.from),
+        to: String(x.to),
+        ph: Math.max(0, phases.indexOf(String(x.phase ?? '').trim())),
+        focus: String(x.focus ?? ''),
+        done: false,
+      }))
+      .slice(0, 20);
     state.newTask.phases = phases;
-    toast(`AI 分了 ${phases.length} 个阶段：${phases.join(' → ')}`);
+    state.newTask.ai = { plan: String(data.plan ?? ''), schedule };
+    toast(schedule.length
+      ? `AI 给了 ${phases.length} 个阶段和 ${schedule.length} 天安排，看一下再决定`
+      : `AI 给了 ${phases.length} 个阶段（没给逐日安排）`);
   } catch (err) {
-    toast(`AI 分阶段失败：${err.message}`);
+    toast(`AI 规划失败：${err.message}`);
   }
   state.phasesBusy = false;
   draw();
@@ -170,9 +191,37 @@ function listPanel() {
           h('button', {
             class: 'primary',
             disabled: state.phasesBusy,
-            onclick: () => suggestPhases(),
-          }, state.phasesBusy ? '正在分阶段…' : '让 AI 按任务名分阶段'),
-          h('span', { class: 'small muted' }, '比如填「期末复习数据结构」，它会给出复习→刷题→真题→复盘这类阶段')),
+            onclick: () => suggestPlan(),
+          }, state.phasesBusy ? 'AI 正在规划…' : '让 AI 出规划和分阶段'),
+          h('span', { class: 'small muted' }, '它会按任务名给出阶段、思路，以及每天做哪一段；你同意后再建任务')),
+        state.newTask.ai
+          ? h('div', { class: 'aibox' },
+            state.newTask.ai.plan
+              ? h('p', { class: 'small muted', style: 'margin:0 0 6px' }, `思路：${state.newTask.ai.plan}`)
+              : null,
+            state.newTask.ai.schedule.length
+              ? [
+                h('p', { class: 'small muted', style: 'margin:0 0 4px' },
+                  `逐日安排 ${state.newTask.ai.schedule.length} 段：`),
+                ...state.newTask.ai.schedule.slice(0, 12).map((slot) => h('div', { class: 'slotline' },
+                  h('span', { class: 'time' }, `${slot.d} ${slot.w}`),
+                  h('span', { class: 'grow small' }, `${state.newTask.phases[slot.ph] ?? ''} · ${slot.focus || '（未写内容）'}`),
+                  h('span', { class: 'chip' }, `${slot.from}-${slot.to}`))),
+                h('div', { class: 'row' },
+                  h('span', { class: 'small muted' }, '同意这份安排就点右边；不满意可以让 AI 重新生成'),
+                  h('button', {
+                    class: 'primary',
+                    style: 'margin-left:auto',
+                    onclick: () => {
+                      toast('已采用 AI 的安排，点下面「建好」就会按这份安排建任务');
+                      state.newTask.agreed = true;
+                      draw();
+                    },
+                  }, state.newTask.agreed ? '已采用' : '同意这份安排')),
+              ]
+              : h('p', { class: 'small muted' }, 'AI 只给了阶段名，逐日安排会在建任务时按工作日自动铺开。'),
+          )
+          : null,
         h('div', { class: 'row' },
           h('button', {
             class: 'primary',
@@ -195,6 +244,11 @@ function listPanel() {
                 plan: [],
               };
               task.plan = replan(task, todayKey(), 'today');
+              if (form.ai?.schedule?.length && form.agreed) {
+                task.plan = form.ai.schedule.map((slot) => ({
+                  d: slot.d, w: slot.w, from: slot.from, to: slot.to, ph: slot.ph, done: false,
+                }));
+              }
               state.tasks.push(task);
               state.picked = task.id;
               state.newTask = null;
