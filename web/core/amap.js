@@ -90,6 +90,48 @@ export function lngLatToName(lnglat) {
   return { lng: Number(lnglat.getLng().toFixed(6)), lat: Number(lnglat.getLat().toFixed(6)) };
 }
 
+const ROUTE_PLUGIN = {
+  drive: 'AMap.Driving',
+  walk: 'AMap.Walking',
+  ride: 'AMap.Riding',
+  transit: 'AMap.Transfer',
+  metro: 'AMap.Transfer',
+};
+
+// 按交通方式真实规划一段路：返回沿途坐标、耗时与距离；公交/地铁需要城市
+export async function planLeg(from, to, mode, city = '') {
+  const pluginName = ROUTE_PLUGIN[mode] ?? 'AMap.Transfer';
+  const needsCity = pluginName === 'AMap.Transfer';
+  if (needsCity && !city) throw new Error('公交与地铁需要先填城市');
+  const AMap = await ensurePlugins([pluginName]);
+  const Ctor = AMap[pluginName.split('.').pop()];
+  return new Promise((resolve, reject) => {
+    const service = new Ctor({ hideMarkers: true, map: null });
+    let settled = false;
+    const callback = (status, result) => {
+      if (settled) return;
+      settled = true;
+      if (status !== 'complete' || !result?.routes?.length) return reject(new Error('没规划出路线'));
+      const route = result.routes[0];
+      const path = (route.steps ?? [])
+        .flatMap((step) => step.path ?? [])
+        .map((point) => [point.lng, point.lat]);
+      if (path.length < 2) return reject(new Error('路线为空'));
+      resolve({
+        path,
+        minutes: Math.max(1, Math.round((route.time ?? 0) / 60)),
+        km: Math.round((route.distance ?? 0) / 100) / 10,
+      });
+    };
+    try {
+      if (needsCity) service.search([from.lng, from.lat], [to.lng, to.lat], { city, cityd: city }, callback);
+      else service.search([from.lng, from.lat], [to.lng, to.lat], callback);
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 function ensurePlugins(names) {
   return new Promise((resolve, reject) => {
     const AMap = globalThis.AMap;

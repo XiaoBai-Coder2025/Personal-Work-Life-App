@@ -1,7 +1,7 @@
 import { h, clear, toast } from '../core/ui.js';
 import { load, save } from '../core/api.js';
 import { bestOrder, departPlan, haversineKm, estimateMinutes } from '../core/route.js';
-import { loadAmap, searchNearby, geocode, lngLatToName } from '../core/amap.js';
+import { loadAmap, searchNearby, geocode, lngLatToName, planLeg } from '../core/amap.js';
 import { colorFor } from '../core/colors.js';
 
 function drawSchematic(box) {
@@ -56,9 +56,11 @@ async function ensure() {
       mapError: '',
       map: null,
       amap: null,
-    overlays: [],
-    searchState: '',
-    city: '',
+      overlays: [],
+      searchState: '',
+      city: '',
+      routeInfo: {},
+      routeKey: '',
     };
   }
   state.places = items;
@@ -107,18 +109,15 @@ function drawMap() {
     drawSchematic(box);
     return;
   }
-  if (state.map && state.overlays.length) {
-    state.overlays.forEach((overlay) => overlay.setMap(null));
-    state.overlays = [];
-  }
   if (!state.map) {
     // 建地图前必须把容器清干净，否则之前画的示意图会盖在地图上、也会挡住点击
     box.replaceChildren();
-    const center = state.places.find((p) => p.lng != null);
+    const view = state.view ?? {};
+    const first = state.places.find((p) => p.lng != null);
     try {
       state.map = new state.amap.Map('amap', {
-        zoom: 12,
-        center: center ? [center.lng, center.lat] : [118.79, 32.05],
+        zoom: view.zoom ?? 12,
+        center: view.center ?? (first ? [first.lng, first.lat] : [118.79, 32.05]),
       });
     } catch (err) {
       state.map = null;
@@ -159,6 +158,9 @@ function drawMap() {
       toast('已在地图上的这个位置标记一个点');
       draw();
     });
+  } else if (state.overlays.length) {
+    state.overlays.forEach((overlay) => overlay.setMap(null));
+    state.overlays = [];
   }
   for (const place of state.places) {
     if (place.lng == null) continue;
@@ -178,16 +180,53 @@ function drawMap() {
     marker.setMap(state.map);
     state.overlays.push(marker);
   }
-  const line = state.order.map((id) => byId(id)).filter((p) => p?.lng != null);
-  if (line.length > 1) {
-    const polyline = new state.amap.Polyline({
-      path: line.map((p) => [p.lng, p.lat]),
-      strokeColor: '#0d9488',
-      strokeWeight: 4,
-    });
-    polyline.setMap(state.map);
-    state.overlays.push(polyline);
+  drawRoute();
+}
+
+// 画真实路线：拿不到（缺城市、插件失败）就退回直线，并标记为估算
+function drawRoute() {
+  const legs = [];
+  for (let i = 0; i < state.order.length - 1; i += 1) {
+    const from = byId(state.order[i]);
+    const to = byId(state.order[i + 1]);
+    if (from?.lng == null || to?.lng == null) continue;
+    legs.push({ from, to, key: `${from.id}>${to.id}` });
   }
+  for (const leg of legs) {
+    const mode = state.legMode[leg.key] ?? 'metro';
+    const straight = [[leg.from.lng, leg.from.lat], [leg.to.lng, leg.to.lat]];
+    const cached = state.routeInfo[leg.key];
+    const path = cached?.path?.length > 1 ? cached.path : straight;
+    const line = new state.amap.Polyline({
+      path,
+      strokeColor: mode === 'walk' ? '#0d9488' : mode === 'drive' ? '#2f6feb' : '#7c5cff',
+      strokeWeight: 5,
+      strokeStyle: cached ? 'solid' : 'dashed',
+      showDir: true,
+      lineJoin: 'round',
+    });
+    line.setMap(state.map);
+    state.overlays.push(line);
+  }
+  // 没算过的路段去要高德算一次真实路线，回来后再画一遍
+  const pending = legs.filter((leg) => !state.routeInfo[leg.key]);
+  if (!pending.length) return;
+  const signature = pending.map((leg) => leg.key + (state.legMode[leg.key] ?? 'metro')).join('|');
+  if (state.routeKey === signature) return;
+  state.routeKey = signature;
+  (async () => {
+    for (const leg of pending) {
+      const mode = state.legMode[leg.key] ?? 'metro';
+      try {
+        const info = await planLeg(leg.from, leg.to, mode, state.city.trim());
+        state.routeInfo[leg.key] = info;
+      } catch (err) {
+        state.routeInfo[leg.key] = { error: err.message };
+      }
+    }
+    state.routeKey = '';
+    draw();
+  })();
 }
 
 function mapDiagnostic() {
@@ -199,6 +238,19 @@ function mapDiagnostic() {
 }
 
 function draw() {
+  // 重画会换掉地图容器，旧实例随之失效：先记住视角再销毁，重建后标记才会立刻出现
+  if (state.map) {
+    try {
+      const center = state.map.getCenter();
+      state.view = { center: [center.getLng(), center.getLat()], zoom: state.map.getZoom() };
+      state.map.destroy();
+    } catch {
+      /* 忽略 */
+    }
+    state.map = null;
+    state.overlays = [];
+    state.routeKey = '';
+  }
   const view = document.getElementById('view');
   clear(view);
   const { legs, travel, depart } = plan();
@@ -433,18 +485,25 @@ function draw() {
             : `推荐 ${depart.recommend} 出发（路上 ${depart.travel} 分钟 + 留 5 分钟）`),
         h('h3', {}, '逐段行程'),
         legs.length
-          ? legs.map((leg) => h('div', { class: 'row' },
+          ? legs.map((leg) => {
+            const info = state.routeInfo[`${leg.from}>${leg.to}`];
+            return h('div', { class: 'row' },
             h('span', { class: 'grow small' }, `${byId(leg.from)?.name} → ${byId(leg.to)?.name}`),
-            h('span', { class: 'chip' }, `${leg.minutes} 分钟`),
+            h('span', { class: `chip${info && !info.error ? ' ok' : ''}` },
+              info?.error
+                ? `${leg.minutes} 分钟（估算）`
+                : info ? `${info.minutes} 分钟 · ${info.km} 公里` : `${leg.minutes} 分钟（估算）`),
             h('select', {
               onchange: (e) => {
                 state.legMode[`${leg.from}>${leg.to}`] = e.target.value;
+                state.routeKey = '';
                 draw();
               },
             }, Object.entries(MODE_NAMES).map(([value, name]) => h('option', {
               value,
               selected: leg.mode === value,
-            }, name)))))
+            }, name))));
+          })
           : h('p', { class: 'muted' }, '至少选两个点'),
         h('p', { class: 'muted small' },
           `总耗时 ${travel} 分钟；${state.holiday ? '已按节假日系数放大' : '按平日估算'}`),
